@@ -69,10 +69,29 @@ extern "C" {
 // Frame counter for Kaillera sync (updated via frame callback)
 static int s_CurrentFrame = 0;
 
+
+#ifdef NETPLAY
+// Maximum players supported by Kaillera
+#define MAX_PLAYERS 8
+
+// Cache for preventing duplicate syncs within same frame
+static int s_LastSyncFrame = -1;
+static uint32_t s_CachedSyncBuffer[MAX_PLAYERS] = {0};
+static int s_CachedNumReceived = 0;
+
+// Track whether we've already synced since the last frame advance
+// This is more reliable than comparing frame numbers due to callback timing
+static bool s_SyncedThisFrame = false;
+#endif
 // Frame callback function
 static void FrameCallback(unsigned int frameIndex)
 {
     s_CurrentFrame = frameIndex;
+#ifdef NETPLAY
+    // Reset sync flag at the start of each new frame
+    // This ensures we sync exactly once per frame regardless of PIF polling timing
+    s_SyncedThisFrame = false;
+#endif
 }
 
 // Kaillera PIF sync callback (called from mupen64plus-core after netplay sync)
@@ -86,35 +105,55 @@ static void KailleraPifSyncCallback(struct pif* pif)
     int player_num = CoreGetKailleraPlayerNumber();
     int num_players = CoreGetKailleraNumPlayers();
 
-    if (player_num < 1 || player_num > 4) {
+    if (player_num < 1 || player_num > MAX_PLAYERS) {
         return; // Invalid player number
     }
 
-    // Extract local input from the FIRST active controller (channel 0)
-    // Each player uses their local controller, regardless of player number
-    uint32_t local_input = 0;
+    // Check if this is a controller read command for channel 0 (local player)
+    // We only want to sync on actual input reads, not status queries or other commands
+    bool isControllerRead = (pif->channels[0].tx &&
+                             pif->channels[0].tx_buf[0] == JCMD_CONTROLLER_READ &&
+                             pif->channels[0].rx_buf != NULL);
 
-    if (pif->channels[0].tx &&
-        pif->channels[0].tx_buf[0] == JCMD_CONTROLLER_READ &&
-        pif->channels[0].rx_buf != NULL) {
+    // Only sync with Kaillera on controller read commands, and only once per frame
+    // This prevents syncing on JCMD_STATUS which would send zero input
+    if (isControllerRead && !s_SyncedThisFrame) {
+        // First controller read this frame - read local input and sync with Kaillera
+        s_SyncedThisFrame = true;  // Mark as synced BEFORE calling Kaillera
+
         // Read 4-byte controller response from local controller
         // N64 controller format: [buttons_hi][buttons_lo][x_axis][y_axis]
         uint8_t* rx = pif->channels[0].rx_buf;
-        local_input = (rx[0] << 24) | (rx[1] << 16) | (rx[2] << 8) | rx[3];
-    }
+        uint32_t local_input = (rx[0] << 24) | (rx[1] << 16) | (rx[2] << 8) | rx[3];
 
-    // Synchronize via Kaillera (send our input, get all inputs back)
-    uint32_t sync_buffer[4] = {0};
-    sync_buffer[0] = local_input;
+        uint32_t sync_buffer[MAX_PLAYERS] = {0};
+        sync_buffer[0] = local_input;
 
-    int ret = CoreModifyKailleraPlayValues(sync_buffer, sizeof(uint32_t));
+        // Synchronize with Kaillera - this must be called exactly ONCE per emulator frame
+        int ret = CoreModifyKailleraPlayValues(sync_buffer, sizeof(uint32_t));
 
-    // Write back synchronized inputs to PIF RAM for all netplay players
-    // This makes remote players appear as physically connected controllers
-    if (ret > 0) {
+        if (ret <= 0) {
+            // Network error - cache zeros to avoid garbage data
+            s_CachedNumReceived = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                s_CachedSyncBuffer[i] = 0;
+            }
+            return;
+        }
+
         int num_received = ret / sizeof(uint32_t);
 
-        for (int i = 0; i < num_received && i < 4; i++) {
+        // Cache synced results for subsequent polls this frame and for writing to PIF
+        s_CachedNumReceived = num_received;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            s_CachedSyncBuffer[i] = sync_buffer[i];
+        }
+    }
+
+    // Write cached synchronized inputs to PIF RAM for all netplay players
+    // (All polls within the same frame use the cached data)
+    if (s_CachedNumReceived > 0) {
+        for (int i = 0; i < s_CachedNumReceived && i < MAX_PLAYERS; i++) {
             if (pif->channels[i].tx && pif->channels[i].rx != NULL) {
                 // Always clear error bits to show controller as connected
                 *pif->channels[i].rx &= ~0xC0;
@@ -131,13 +170,13 @@ static void KailleraPifSyncCallback(struct pif* pif)
                     }
                 }
                 else if (cmd == JCMD_CONTROLLER_READ) {
-                    // Write synced controller input
+                    // Write synced controller input from cache
                     if (pif->channels[i].rx_buf != NULL) {
                         uint8_t* rx = pif->channels[i].rx_buf;
-                        rx[0] = (sync_buffer[i] >> 24) & 0xFF;
-                        rx[1] = (sync_buffer[i] >> 16) & 0xFF;
-                        rx[2] = (sync_buffer[i] >> 8) & 0xFF;
-                        rx[3] = sync_buffer[i] & 0xFF;
+                        rx[0] = (s_CachedSyncBuffer[i] >> 24) & 0xFF;
+                        rx[1] = (s_CachedSyncBuffer[i] >> 16) & 0xFF;
+                        rx[2] = (s_CachedSyncBuffer[i] >> 8) & 0xFF;
+                        rx[3] = s_CachedSyncBuffer[i] & 0xFF;
                     }
                 }
                 else if (cmd == JCMD_PAK_READ && pif->channels[i].rx_buf != NULL) {
@@ -219,6 +258,37 @@ static void apply_game_coresettings_overlay(void)
     CoreSettingsSetValue(SettingsID::Core_CountPerOpDenomPot, CoreSettingsGetIntValue(SettingsID::Game_CountPerOpDenomPot, section));
 }
 
+#ifdef NETPLAY
+// Force deterministic settings for Kaillera netplay to prevent desync
+// These settings MUST be identical across all clients
+static void apply_kaillera_deterministic_settings(void)
+{
+    // Disable RandomizeInterrupt - critical for deterministic emulation
+    // When enabled, interrupt timing varies randomly which causes desync
+    CoreSettingsSetValue(SettingsID::Core_RandomizeInterrupt, false);
+
+    // Use pure interpreter for maximum determinism (slower but more reliable)
+    // Dynamic recompiler can have timing variations between different CPUs
+    // Value 0 = Pure Interpreter, 1 = Cached Interpreter, 2 = Dynamic Recompiler
+    CoreSettingsSetValue(SettingsID::Core_CPU_Emulator, 0);
+
+    // Set consistent CountPerOp values for deterministic timing
+    CoreSettingsSetValue(SettingsID::Core_CountPerOp, 0);
+    CoreSettingsSetValue(SettingsID::Core_CountPerOpDenomPot, 0);
+
+    // Set consistent SI DMA duration
+    CoreSettingsSetValue(SettingsID::Core_SiDmaDuration, -1);
+
+    // Force Static Interpreter RSP plugin (cxd4) for maximum determinism
+    // HLE RSP has timing approximations, paraLLEl uses GPU which can vary between hardware
+#ifdef _WIN32
+    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.dll"));
+#else
+    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.so"));
+#endif
+}
+#endif
+
 static void apply_pif_rom_settings(void)
 {
     CoreRomHeader romHeader;
@@ -277,7 +347,7 @@ static void apply_pif_rom_settings(void)
 // Exported Functions
 //
 
-CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesystem::path n64ddrom, 
+CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesystem::path n64ddrom,
     std::string address, int port, int player)
 {
     std::string error;
@@ -285,6 +355,15 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     bool        netplay_ret = false;
     CoreRomType type;
     bool        netplay = !address.empty();
+
+#ifdef NETPLAY
+    // Apply deterministic settings BEFORE opening ROM for Kaillera netplay
+    // The core reads CPU emulator mode during ROM open, so this must come first
+    if (netplay && address == "KAILLERA")
+    {
+        apply_kaillera_deterministic_settings();
+    }
+#endif
 
     if (!CoreOpenRom(n64rom))
     {
@@ -397,6 +476,16 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
         // Register frame callback for frame counter (used by Kaillera)
         s_CurrentFrame = 0;
         m64p::Core.DoCommand(M64CMD_SET_FRAME_CALLBACK, 0, (void*)FrameCallback);
+
+#ifdef NETPLAY
+        // Reset Kaillera sync state to prevent stale cache from previous sessions
+        s_LastSyncFrame = -1;
+        s_SyncedThisFrame = false;
+        s_CachedNumReceived = 0;
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            s_CachedSyncBuffer[i] = 0;
+        }
+#endif
 
 #ifdef NETPLAY
         // Register Kaillera PIF sync callback (works with any input plugin)

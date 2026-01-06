@@ -399,3 +399,22 @@ CORE_EXPORT int CoreGetKailleraNumPlayers(void)
 {
     return s_NumPlayers;
 }
+
+CORE_EXPORT int CoreGetKailleraFrameDelay(void)
+{
+    if (!s_Initialized || !s_GameActive)
+    {
+        return 0;
+    }
+
+    typedef int (WINAPI *kailleraGetFrameDelay_t)();
+    kailleraGetFrameDelay_t kailleraGetFrameDelay =
+        (kailleraGetFrameDelay_t)GetProcAddress(s_KailleraDLL, "kailleraGetFrameDelay");
+
+    if (kailleraGetFrameDelay)
+    {
+        return kailleraGetFrameDelay();
+    }
+
+    return 0; // Fallback if function not available
+}

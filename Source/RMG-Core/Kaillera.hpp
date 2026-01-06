@@ -77,7 +77,11 @@ CORE_EXPORT void CoreSetKailleraPlayerNumber(int playerNumber);
 CORE_EXPORT int CoreGetKailleraPlayerNumber(void);
 
 // Get the total number of players in the current Kaillera game
-// Returns 0 if not in a game, otherwise 1-4
+// Returns 0 if not in a game, otherwise 1-8
 CORE_EXPORT int CoreGetKailleraNumPlayers(void);
+
+// Get the frame delay assigned by the Kaillera server
+// Returns the number of frames to buffer inputs (0 if not in game)
+CORE_EXPORT int CoreGetKailleraFrameDelay(void);
 
 #endif // CORE_KAILLERA_HPP
