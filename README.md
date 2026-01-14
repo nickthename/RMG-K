@@ -1,36 +1,33 @@
-# Rosalie's Mupen GUI
+# RMG-K (Rosalie's Mupen GUI - Kaillera)
 
 Rosalie's Mupen GUI is a free and open-source mupen64plus front-end written in C++.
-
+This is a fork of RMG with Kaillera netplay support for N64 online multiplayer.
 It offers a simple-to-use user interface.
 
-## Download
+## Features added:
+### N02 Client
+<img width="494" height="329" alt="image" src="https://github.com/user-attachments/assets/b7ae15a1-dae1-4bf0-ba57-64dac1f4d35d" />
 
-#### Windows
-You can download Rosalie's Mupen GUI on ![Github Releases](https://github.com/Rosalie241/RMG/releases)
+### Frame Delay Override
 
-#### Linux
-You can download Rosalie's Mupen GUI on 
-* [Github Releases (AppImage)](https://github.com/Rosalie241/RMG/releases)
-* [Flathub (Flatpak)](https://flathub.org/apps/details/com.github.Rosalie241.RMG)
-* [Arch User Repository](https://aur.archlinux.org/packages/rmg)
-* [Fedora COPR](https://copr.fedorainfracloud.org/coprs/rosalie/RMG/)
+This allows the users to set their own frame delay, previously called ping spoofing.
 
-## Support
+0 = Server sets frame delay on game start
 
-You can ask for help or report issues on
-* [Github](https://github.com/Rosalie241/RMG/issues/new)
-* [Discord](https://discord.gg/k9GuyJ2PpF)
+1-9 = sets 1, 2, 3 frames of delay and so on.
 
-## License
+### Connection Handling
+- Keeps Kaillera connection alive after emulation ends (drop) for game restarts
+- Players can restart games after dropping without reconnecting to server
 
-Rosalie's Mupen GUI is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
 
 ## Showcase
 
 ![RomBrowser](Package/Screenshots/RomBrowser.png)
 ![InGame](Package/Screenshots/InGame.png)
 ![InputSettings](Package/Screenshots/InputSettings.png)
+<img width="760" height="541" alt="image" src="https://github.com/user-attachments/assets/3afa1327-c5ff-4367-ba61-756657be8346" />
+
 
 ## Building
 
@@ -80,3 +77,8 @@ pacman -S --needed make mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mi
 ```
 
 When it's done building, executables can be found in `Bin/Release`
+
+
+## License
+
+Rosalie's Mupen GUI is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
