@@ -11,6 +11,8 @@
 #include "Kaillera.hpp"
 #include "Error.hpp"
 
+#ifdef _WIN32
+
 #include <windows.h>
 #include <cstring>
 
@@ -435,3 +437,90 @@ CORE_EXPORT int CoreGetKailleraFrameDelay(void)
 
     return 0; // Fallback if function not available
 }
+
+#else // !_WIN32
+
+// Stub implementations for non-Windows platforms
+// Kaillera is Windows-only (requires kailleraclient.dll)
+
+CORE_EXPORT bool CoreInitKaillera(void)
+{
+    CoreSetError("Kaillera is only supported on Windows");
+    return false;
+}
+
+CORE_EXPORT bool CoreShutdownKaillera(void)
+{
+    return true;
+}
+
+CORE_EXPORT bool CoreHasInitKaillera(void)
+{
+    return false;
+}
+
+CORE_EXPORT bool CoreShowKailleraServerDialog(void* parentHwnd)
+{
+    (void)parentHwnd;
+    CoreSetError("Kaillera is only supported on Windows");
+    return false;
+}
+
+CORE_EXPORT int CoreModifyKailleraPlayValues(void* values, int size)
+{
+    (void)values;
+    (void)size;
+    return -1;
+}
+
+CORE_EXPORT bool CoreKailleraSendChat(std::string text)
+{
+    (void)text;
+    return false;
+}
+
+CORE_EXPORT bool CoreEndKailleraGame(void)
+{
+    return true;
+}
+
+CORE_EXPORT void CoreSetKailleraCallbacks(
+    CoreKaillera::GameStartCallback gameStartCallback,
+    CoreKaillera::ChatReceivedCallback chatReceivedCallback,
+    CoreKaillera::ClientDroppedCallback clientDroppedCallback,
+    CoreKaillera::MoreInfosCallback moreInfosCallback)
+{
+    (void)gameStartCallback;
+    (void)chatReceivedCallback;
+    (void)clientDroppedCallback;
+    (void)moreInfosCallback;
+}
+
+CORE_EXPORT bool CoreSetKailleraAppInfo(std::string appName, std::string gameList)
+{
+    (void)appName;
+    (void)gameList;
+    return false;
+}
+
+CORE_EXPORT void CoreSetKailleraPlayerNumber(int playerNumber)
+{
+    (void)playerNumber;
+}
+
+CORE_EXPORT int CoreGetKailleraPlayerNumber(void)
+{
+    return 0;
+}
+
+CORE_EXPORT int CoreGetKailleraNumPlayers(void)
+{
+    return 0;
+}
+
+CORE_EXPORT int CoreGetKailleraFrameDelay(void)
+{
+    return 0;
+}
+
+#endif // _WIN32
