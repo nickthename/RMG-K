@@ -241,8 +241,22 @@ CORE_EXPORT bool CoreShutdownKaillera(void)
     s_Initialized = false;
     s_GameActive = false;
 
-    // Note: We don't FreeLibrary the DLL because Kaillera may have
-    // background threads that need to clean up
+    // Unload the DLL to close any Kaillera windows
+    if (s_KailleraDLL != nullptr)
+    {
+        FreeLibrary(s_KailleraDLL);
+        s_KailleraDLL = nullptr;
+
+        // Clear function pointers
+        kailleraGetVersion = nullptr;
+        kailleraInit = nullptr;
+        kailleraShutdown = nullptr;
+        kailleraSetInfos = nullptr;
+        kailleraSelectServerDialog = nullptr;
+        kailleraModifyPlayValues = nullptr;
+        kailleraChatSend = nullptr;
+        kailleraEndGame = nullptr;
+    }
 
     return true;
 }

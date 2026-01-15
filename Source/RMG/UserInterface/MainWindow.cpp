@@ -61,6 +61,8 @@
 
 #include <cstdlib>
 #include <cmath>
+#include <algorithm>
+#include <vector>
 
 #include <RMG-Core/CachedRomHeaderAndSettings.hpp>
 #include <RMG-Core/SpeedLimiter.hpp>
@@ -221,6 +223,15 @@ void MainWindow::closeEvent(QCloseEvent *event)
     if (this->netplaySessionDialog != nullptr)
     {
         this->netplaySessionDialog->close();
+    }
+
+    // Shutdown Kaillera if active
+    if (this->kailleraSessionManager != nullptr)
+    {
+        CoreEndKailleraGame();
+        CoreShutdownKaillera();
+        delete this->kailleraSessionManager;
+        this->kailleraSessionManager = nullptr;
     }
 #endif // NETPLAY
 
@@ -2072,24 +2083,38 @@ void MainWindow::on_Action_Netplay_BrowseSessions(void)
     }
 
     // Set Kaillera app info (app name and game list)
-    QString appName = "RMG v" + QString::fromStdString(CoreGetVersion());
-    QString gameList = ""; // Will be set from ROM list
+    std::string appName = "RMG v" + CoreGetVersion();
     // Build game list from ROM browser (null-terminated strings with double-null at end)
+    // Must use std::string directly to preserve embedded null characters
+    std::string gameList;
     QMap<QString, CoreRomSettings> romData = this->ui_Widget_RomBrowser->GetModelData();
+
+    // Collect and sort GoodNames alphabetically for Kaillera
+    // (n02 creates submenus by first letter, so games must be sorted by name)
+    std::vector<std::string> goodNames;
     for (auto it = romData.begin(); it != romData.end(); ++it)
     {
-        QString goodName = QString::fromStdString(it.value().GoodName);
+        std::string goodName = it.value().GoodName;
         // Strip "(unknown rom)" suffix for better Kaillera compatibility
-        if (goodName.endsWith(" (unknown rom)"))
+        const std::string suffix = " (unknown rom)";
+        if (goodName.size() >= suffix.size() &&
+            goodName.compare(goodName.size() - suffix.size(), suffix.size(), suffix) == 0)
         {
-            goodName = goodName.left(goodName.length() - 14);
+            goodName = goodName.substr(0, goodName.size() - suffix.size());
         }
-        gameList += goodName + QString(QChar('\0'));
+        goodNames.push_back(goodName);
     }
-    gameList += QString(QChar('\0')); // Double null terminator
-    // Use toUtf8() with explicit size to preserve embedded nulls
-    QByteArray gameListBytes = gameList.toUtf8();
-    CoreSetKailleraAppInfo(appName.toStdString(), std::string(gameListBytes.constData(), gameListBytes.size()));
+    std::sort(goodNames.begin(), goodNames.end(), [](const std::string& a, const std::string& b) {
+        return QString::fromStdString(a).compare(QString::fromStdString(b), Qt::CaseInsensitive) < 0;
+    });
+
+    for (const auto& name : goodNames)
+    {
+        gameList += name;
+        gameList += '\0';
+    }
+    gameList += '\0'; // Double null terminator
+    CoreSetKailleraAppInfo(appName, gameList);
 
     // Create Kaillera session manager
     if (this->kailleraSessionManager != nullptr)

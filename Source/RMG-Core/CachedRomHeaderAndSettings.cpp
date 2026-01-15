@@ -509,6 +509,14 @@ CORE_EXPORT bool CoreUpdateCachedRomHeaderAndSettings(std::filesystem::path file
 CORE_EXPORT bool CoreClearRomHeaderAndSettingsCache(void)
 {
     l_CacheEntries.clear();
-    l_CacheEntriesChanged = true;
+    l_CacheEntriesChanged = false; // No need to save since we're deleting the file
+
+    // Delete the cache file from disk
+    std::filesystem::path cacheFile = get_cache_file_name();
+    if (std::filesystem::exists(cacheFile))
+    {
+        std::filesystem::remove(cacheFile);
+    }
+
     return true;
 }
