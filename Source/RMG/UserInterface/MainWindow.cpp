@@ -2186,7 +2186,7 @@ void MainWindow::on_Kaillera_GameStarted(QString gameName, int playerNum, int to
         int timeout = 5000;
         while (this->emulationThread->isRunning() && timeout > 0)
         {
-            Sleep(10);
+            QThread::msleep(10);
             timeout -= 10;
         }
     }
