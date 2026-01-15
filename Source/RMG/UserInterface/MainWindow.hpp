@@ -222,10 +222,12 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     void on_Action_Netplay_BrowseSessions(void);
     void on_Action_Netplay_ViewSession(void);
 
+#ifdef NETPLAY
     void on_Kaillera_GameStarted(QString gameName, int playerNum, int totalPlayers);
     void on_Kaillera_ChatReceived(QString nickname, QString message);
     void on_Kaillera_PlayerDropped(QString nickname, int playerNum);
     void on_Kaillera_GameEnded(void);
+#endif
 
     void on_Action_Help_Github(void);
     void on_Action_Help_About(void);

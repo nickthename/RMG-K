@@ -655,11 +655,13 @@ SOURCE += $(SUBDIR)/oglft/OGLFT.cpp
 CXXFLAGS += -I$(SUBDIR)/oglft
 endif
 
+# pif sync callback (always needed, used by Kaillera netplay)
+SOURCE += $(SRCDIR)/main/pif_sync_callback.c
+
 # netplay
 ifeq ($(NETPLAY), 1)
 CFLAGS += -DM64P_NETPLAY
 SOURCE += $(SRCDIR)/main/netplay.c
-SOURCE += $(SRCDIR)/main/pif_sync_callback.c
 endif
 
 # source files for optional features
