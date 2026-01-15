@@ -2,7 +2,6 @@ name: RMG
 
 on:
   push:
-    branches: ['*']
     tags: ['v*']
   pull_request:
 
