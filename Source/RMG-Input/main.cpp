@@ -51,8 +51,6 @@
 //
 
 #define NUM_CONTROLLERS    4
-#define N64_AXIS_PEAK      85
-#define MAX_DIAGONAL_VALUE 69
 
 #define RD_GETSTATUS        0x00   // get status
 #define RD_READKEYS         0x01   // read button values
@@ -81,7 +79,7 @@ struct InputProfile
 {
     bool PluggedIn    = false;
     double DeadzoneValue = 0.0;
-    double SensitivityValue = 100.0;
+    double RangeValue = 66.0;  // 0-100, default 66 for real N64 range
 
     N64ControllerPak ControllerPak = N64ControllerPak::None;
 
@@ -317,7 +315,7 @@ static void load_settings(void)
         profile->DeviceType = static_cast<InputDeviceType>(CoreSettingsGetIntValue(SettingsID::Input_DeviceType, section));
         profile->GameboyRom = CoreSettingsGetStringValue(SettingsID::Input_GameboyRom, section);
         profile->GameboySave = CoreSettingsGetStringValue(SettingsID::Input_GameboySave, section);
-        profile->SensitivityValue = static_cast<double>(CoreSettingsGetIntValue(SettingsID::Input_Sensitivity, section)) / 100.0;
+        profile->RangeValue = static_cast<double>(CoreSettingsGetIntValue(SettingsID::Input_Range, section));
 
 #define LOAD_INPUT_MAPPING(mapping, setting) \
         load_inputmapping_settings(&profile->mapping, section, SettingsID::setting##_Name, SettingsID::setting##_InputType, SettingsID::setting##_Data, SettingsID::setting##_ExtraData)
@@ -882,73 +880,47 @@ static double get_axis_state(InputProfile* profile, const InputMapping* inputMap
     }
 }
 
-// maps a value in one range to a value in another
-static double map_range_to_range(const double value, const double fromLower, const double fromUpper, const double toLower, const double toUpper)
+// Calculate N64 max axis value based on range setting (0-100)
+// At 66%: max = 85 (stock N64 controller)
+// At 100%: max = 127 (protocol max)
+static double get_n64_max(const double range)
 {
-    const double fromDelta = fromUpper - fromLower;
-    const double toDelta = toUpper - toLower;
-    const double toUnitsPerFromUnit = toDelta / fromDelta;
-    const double fromUnits = value - fromLower;
+    constexpr double REAL_N64_RANGE = 66.0;
+    constexpr double REAL_N64_MAX = 85.0;
+    constexpr double PROTOCOL_MAX = 127.0;
 
-    return toLower + fromUnits * toUnitsPerFromUnit;
+    if (range <= REAL_N64_RANGE)
+    {
+        // Below 66%: scale down proportionally from stock N64 value
+        return REAL_N64_MAX * (range / REAL_N64_RANGE);
+    }
+    else
+    {
+        // Above 66%: interpolate between stock N64 and protocol max
+        const double t = (range - REAL_N64_RANGE) / (100.0 - REAL_N64_RANGE);
+        return REAL_N64_MAX + t * (PROTOCOL_MAX - REAL_N64_MAX);
+    }
 }
 
-// applies square deadzone, then scales result such that the edge of the deadzone is 0
-static double apply_deadzone(const double input, const double deadzone)
+// Scale a single axis from normalized input to N64 output
+// Similar to USBtoN64v2 approach - independent per-axis handling
+static int scale_axis(const double input, const double deadzone, const double n64Max)
 {
-    const double inputAbsolute = std::abs(input);
+    const double inputAbs = std::abs(input);
 
-    if (inputAbsolute <= deadzone)
+    if (inputAbs <= deadzone)
     {
         return 0;
     }
 
-    return std::copysign(map_range_to_range(inputAbsolute, deadzone, 1.0, 0.0, 1.0), input);
-}
+    // Scale: (input - deadzone) / (1 - deadzone) gives 0-1 range after deadzone
+    // Then multiply by N64 max
+    const double deadzoneRelation = 1.0 / (1.0 - deadzone);
+    const double scaled = (inputAbs - deadzone) * deadzoneRelation * n64Max;
 
-// Credit: MerryMage, fzurita & kev4cards
-static void simulate_octagon(const double deadzone, const double inputX, const double inputY, int& outputX, int& outputY)
-{
-    const double maxAxis     = N64_AXIS_PEAK;
-    const double maxDiagonal = MAX_DIAGONAL_VALUE;
-    const double maxInputRadius = sqrt(2) * (maxDiagonal + deadzone * (maxAxis - maxDiagonal));
-    // scale to [-maxInputRadius, maxInputRadius]
-    double ax = inputX * maxInputRadius;
-    double ay = inputY * maxInputRadius;
-
-    // check whether (ax, ay) is within the circle of radius maxInputRadius
-    double distance = std::hypot(ax, ay);
-    if (distance > maxInputRadius)
-    {
-        // scale ax and ay to stay on the same line, but at the edge of the circle
-        const double scale = maxInputRadius / distance;
-        ax *= scale;
-        ay *= scale;
-    }
-
-    // bound diagonals to an octagonal range [-maxDiagonal, maxDiagonal]
-    if (ax != 0.0 && ay != 0.0)
-    {
-        const double slope = ay / ax;
-        double edgex = std::copysign(maxAxis / (std::abs(slope) + (maxAxis - maxDiagonal) / maxDiagonal), ax);
-        const double edgey = std::copysign(std::min(std::abs(edgex * slope), maxAxis / (1.0 / std::abs(slope) + (maxAxis - maxDiagonal) / maxDiagonal)), ay);
-        edgex = edgey / slope;
-
-        distance = std::hypot(ax, ay);
-        const double distanceToOctagonalEdge = std::hypot(edgex, edgey);
-        if (distance > distanceToOctagonalEdge)
-        {
-            ax = edgex;
-            ay = edgey;
-        }
-    }
-
-    // keep cardinal input within positive and negative bounds of maxAxis
-    if (std::abs(ax) > maxAxis) ax = std::copysign(maxAxis, ax);
-    if (std::abs(ay) > maxAxis) ay = std::copysign(maxAxis, ay);
-
-    outputX = static_cast<int>(ax);
-    outputY = static_cast<int>(ay);
+    // Clamp to max and apply sign
+    const int result = static_cast<int>(std::min(scaled, n64Max));
+    return (input >= 0) ? result : -result;
 }
 
 static unsigned char data_crc(unsigned char *data, int length)
@@ -1376,29 +1348,13 @@ EXPORT void CALL GetKeys(int Control, BUTTONS* Keys)
     inputX = get_axis_state(profile, &profile->AnalogStick_Left, -1, inputX, useButtonMapping);
     inputX = get_axis_state(profile, &profile->AnalogStick_Right, 1, inputX, useButtonMapping);
 
-    // take deadzone into account
+    // Scale each axis independently (like USBtoN64v2)
+    // Range determines the maximum output: 66% = 85, 100% = 127
     const double deadzone = profile->DeadzoneValue;
-    inputX = apply_deadzone(inputX, deadzone);
-    inputY = apply_deadzone(inputY, deadzone);
+    const double n64Max = get_n64_max(profile->RangeValue);
 
-    // take sensitivity into account
-    const double sensitivityRatio = profile->SensitivityValue;
-    const double lowerInputLimit = std::max(-1.0, -sensitivityRatio);
-    const double upperInputLimit = std::min(1.0, sensitivityRatio);
-    inputX = std::clamp(inputX * sensitivityRatio, lowerInputLimit, upperInputLimit);
-    inputY = std::clamp(inputY * sensitivityRatio, lowerInputLimit, upperInputLimit);
-
-    int octagonX = 0, octagonY = 0;
-    simulate_octagon(
-        deadzone, // deadzone
-        inputX, // inputX
-        inputY, // inputY
-        octagonX, // outputX
-        octagonY  // outputY
-    );
-
-    Keys->X_AXIS = octagonX;
-    Keys->Y_AXIS = octagonY;
+    Keys->X_AXIS = scale_axis(inputX, deadzone, n64Max);
+    Keys->Y_AXIS = scale_axis(inputY, deadzone, n64Max);
 
     // NOTE: Kaillera netplay synchronization moved to PIF RAM level
     // (See kaillera_update_input() in mupen64plus-core/src/main/kaillera.c)

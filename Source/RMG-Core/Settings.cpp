@@ -660,8 +660,11 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::Input_Deadzone:
         setting = {"", "Deadzone"};
         break;
-    case SettingsID::Input_Sensitivity:
-        setting = {"", "Sensitivity"};
+    case SettingsID::Input_Range:
+        setting = {"", "Range"};
+        break;
+    case SettingsID::Input_RealN64Range:
+        setting = {"", "RealN64Range"};
         break;
     case SettingsID::Input_Pak:
         setting = {"", "Pak"};

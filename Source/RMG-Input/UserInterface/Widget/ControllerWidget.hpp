@@ -171,8 +171,9 @@ public:
 
 private slots:
     void on_deadZoneSlider_valueChanged(int value);
-    void on_analogStickSensitivitySlider_valueChanged(int value);
-    
+    void on_analogStickRangeSlider_valueChanged(int value);
+    void on_realN64RangeCheckBox_toggled(bool checked);
+
     void on_profileComboBox_currentIndexChanged(int value);
 
     void on_inputDeviceComboBox_currentIndexChanged(int value);

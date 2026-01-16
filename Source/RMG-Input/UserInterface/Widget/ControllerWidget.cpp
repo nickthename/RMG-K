@@ -402,7 +402,7 @@ void ControllerWidget::setPluggedIn(bool value)
         this->analogStickDownButton, this->analogStickDownAddButton, this->analogStickDownRemoveButton,
         this->analogStickLeftButton, this->analogStickLeftAddButton, this->analogStickLeftRemoveButton,
         this->analogStickRightButton, this->analogStickRightAddButton, this->analogStickRightRemoveButton,
-        this->analogStickSensitivitySlider,
+        this->analogStickRangeSlider, this->realN64RangeCheckBox,
         // cbuttons
         this->cButtonsGroupBox,
         this->cbuttonUpButton, this->cbuttonUpAddButton, this->cbuttonUpRemoveButton,
@@ -448,7 +448,8 @@ bool ControllerWidget::hasAnySettingChanged(QString sectionQString)
     // retrieve data from settings
     bool settingsIsPluggedIn        = CoreSettingsGetBoolValue(SettingsID::Input_PluggedIn, section);
     int settingsDeadZone            = CoreSettingsGetIntValue(SettingsID::Input_Deadzone, section);
-    int settingsAnalogSensitivity   = CoreSettingsGetIntValue(SettingsID::Input_Sensitivity, section);
+    int settingsAnalogRange         = CoreSettingsGetIntValue(SettingsID::Input_Range, section);
+    bool settingsRealN64Range       = CoreSettingsGetBoolValue(SettingsID::Input_RealN64Range, section);
     int settingsPak                 = CoreSettingsGetIntValue(SettingsID::Input_Pak, section);
     std::string settingsGameboyRom  = CoreSettingsGetStringValue(SettingsID::Input_GameboyRom, section);
     std::string settingsGameboySave = CoreSettingsGetStringValue(SettingsID::Input_GameboySave, section);
@@ -456,7 +457,8 @@ bool ControllerWidget::hasAnySettingChanged(QString sectionQString)
     // retrieve current data
     bool currentIsPluggedIn        = this->inputDeviceComboBox->currentText() != "None";
     int currentDeadZone            = this->deadZoneSlider->value();
-    int currentAnalogSensitivity   = this->analogStickSensitivitySlider->value();
+    int currentAnalogRange         = this->analogStickRangeSlider->value();
+    bool currentRealN64Range       = this->realN64RangeCheckBox->isChecked();
     int currentPak                 = this->optionsDialogSettings.ControllerPak;
     std::string currentGameboyRom  = this->optionsDialogSettings.GameboyRom;
     std::string currentGameboySave = this->optionsDialogSettings.GameboySave;
@@ -464,7 +466,8 @@ bool ControllerWidget::hasAnySettingChanged(QString sectionQString)
     // compare settings with current data
     if (settingsIsPluggedIn       != currentIsPluggedIn ||
         settingsDeadZone          != currentDeadZone ||
-        settingsAnalogSensitivity != currentAnalogSensitivity ||
+        settingsAnalogRange       != currentAnalogRange ||
+        settingsRealN64Range      != currentRealN64Range ||
         settingsPak               != currentPak ||
         settingsGameboyRom        != currentGameboyRom ||
         settingsGameboySave       != currentGameboySave)
@@ -745,14 +748,24 @@ void ControllerWidget::on_deadZoneSlider_valueChanged(int value)
     this->controllerImageWidget->SetDeadzone(value);
 }
 
-void ControllerWidget::on_analogStickSensitivitySlider_valueChanged(int value)
+void ControllerWidget::on_analogStickRangeSlider_valueChanged(int value)
 {
-    QString title = tr("Analog Stick Sensitivity: ");
+    QString title = tr("Analog Stick Range: ");
     title += QString::number(value);
     title += "%";
 
-    this->analogStickSensitivityGroupBox->setTitle(title);
-    this->controllerImageWidget->SetSensitivity(value);
+    this->analogStickRangeGroupBox->setTitle(title);
+    this->controllerImageWidget->SetRange(value);
+}
+
+void ControllerWidget::on_realN64RangeCheckBox_toggled(bool checked)
+{
+    // When checked, lock slider to 66% (real N64 range)
+    this->analogStickRangeSlider->setEnabled(!checked);
+    if (checked)
+    {
+        this->analogStickRangeSlider->setValue(66);
+    }
 }
 
 void ControllerWidget::on_profileComboBox_currentIndexChanged(int value)
@@ -1806,7 +1819,10 @@ void ControllerWidget::LoadSettings(QString sectionQString, bool loadUserProfile
         }
     }
 
-    this->analogStickSensitivitySlider->setValue(CoreSettingsGetIntValue(SettingsID::Input_Sensitivity, section));
+    bool realN64Range = CoreSettingsGetBoolValue(SettingsID::Input_RealN64Range, section);
+    this->realN64RangeCheckBox->setChecked(realN64Range);
+    this->analogStickRangeSlider->setEnabled(!realN64Range);
+    this->analogStickRangeSlider->setValue(CoreSettingsGetIntValue(SettingsID::Input_Range, section));
     this->deadZoneSlider->setValue(CoreSettingsGetIntValue(SettingsID::Input_Deadzone, section));
     this->optionsDialogSettings.RemoveDuplicateMappings = CoreSettingsGetBoolValue(SettingsID::Input_RemoveDuplicateMappings, section);
     this->optionsDialogSettings.ControllerPak = CoreSettingsGetIntValue(SettingsID::Input_Pak, section);
@@ -1883,7 +1899,8 @@ void ControllerWidget::SaveDefaultSettings()
     CoreSettingsSetValue(SettingsID::Input_DevicePath, section, std::string(""));
     CoreSettingsSetValue(SettingsID::Input_DeviceSerial, section, std::string(""));
     CoreSettingsSetValue(SettingsID::Input_Deadzone, section, 9);
-    CoreSettingsSetValue(SettingsID::Input_Sensitivity, section, 100);
+    CoreSettingsSetValue(SettingsID::Input_Range, section, 66);
+    CoreSettingsSetValue(SettingsID::Input_RealN64Range, section, true);
     CoreSettingsSetValue(SettingsID::Input_Pak, section, 0);
     CoreSettingsSetValue(SettingsID::Input_RemoveDuplicateMappings, section, true);
     CoreSettingsSetValue(SettingsID::Input_FilterEventsForButtons, section, true);
@@ -1999,7 +2016,8 @@ void ControllerWidget::SaveSettings(QString section)
     CoreSettingsSetValue(SettingsID::Input_DevicePath, sectionStr, device.path);
     CoreSettingsSetValue(SettingsID::Input_DeviceSerial, sectionStr, device.serial);
     CoreSettingsSetValue(SettingsID::Input_Deadzone, sectionStr, this->deadZoneSlider->value());
-    CoreSettingsSetValue(SettingsID::Input_Sensitivity, sectionStr, this->analogStickSensitivitySlider->value());
+    CoreSettingsSetValue(SettingsID::Input_Range, sectionStr, this->analogStickRangeSlider->value());
+    CoreSettingsSetValue(SettingsID::Input_RealN64Range, sectionStr, this->realN64RangeCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::Input_Pak, sectionStr, this->optionsDialogSettings.ControllerPak);
     CoreSettingsSetValue(SettingsID::Input_GameboyRom, sectionStr, this->optionsDialogSettings.GameboyRom);
     CoreSettingsSetValue(SettingsID::Input_GameboySave, sectionStr, this->optionsDialogSettings.GameboySave);

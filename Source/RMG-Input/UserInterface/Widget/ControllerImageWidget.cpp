@@ -62,11 +62,11 @@ void ControllerImageWidget::SetDeadzone(int value)
     }
 }
 
-void ControllerImageWidget::SetSensitivity(int value)
+void ControllerImageWidget::SetRange(int value)
 {
-    if (this->sensitivityValue != value)
+    if (this->rangeValue != value)
     {
-        this->sensitivityValue = value;
+        this->rangeValue = value;
         this->needImageUpdate = true;
     }
 }
@@ -169,28 +169,27 @@ void ControllerImageWidget::paintEvent(QPaintEvent *event)
     const double absoluteMaxOffset = (static_cast<double>(height * 0.114) / 2.0);
     // slope as in line gradient
     const double offsetSlope = absoluteMaxOffset / 100;
-    // take sensitivity into account
-    const double sensitivityFactor = this->sensitivityValue / 100.0;
-    const double sensitivityAdjustedMaxOffset = absoluteMaxOffset * std::min(sensitivityFactor, 1.0);
-    const double offsetDeadzone = this->deadzoneValue * sensitivityFactor * offsetSlope;
-    double offsetx = this->xAxisState * sensitivityFactor * offsetSlope;
-    double offsety = this->yAxisState * sensitivityFactor * offsetSlope;
-    const double offsetDist = std::hypot(offsetx, offsety);
+    // visual maximum is fixed - the stick can't visually go outside its housing
+    const double visualMaxOffset = absoluteMaxOffset;
+    const double offsetDeadzone = this->deadzoneValue * offsetSlope;
+    // Visual shows physical stick position (range only affects output values to emulator)
+    double offsetx = this->xAxisState * offsetSlope;
+    double offsety = this->yAxisState * offsetSlope;
+    double offsetDist = std::hypot(offsetx, offsety);
 
     // take deadzone into account
-    // deadzone grows with sensitivity such that the deadzone
-    // is always a percentage of the real stick range
     if (offsetDist <= offsetDeadzone)
     {
         offsetx = 0;
         offsety = 0;
+        offsetDist = 0;
     }
 
-    // take circle range into account
-    if (offsetDist > sensitivityAdjustedMaxOffset)
+    // clamp to visual maximum
+    if (offsetDist > visualMaxOffset)
     {
-        offsetx = (offsetx / offsetDist) * sensitivityAdjustedMaxOffset;
-        offsety = (offsety / offsetDist) * sensitivityAdjustedMaxOffset;
+        offsetx = (offsetx / offsetDist) * visualMaxOffset;
+        offsety = (offsety / offsetDist) * visualMaxOffset;
     }
 
     // adjust rect with offset
