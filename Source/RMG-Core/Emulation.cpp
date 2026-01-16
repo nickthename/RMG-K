@@ -132,7 +132,7 @@ static void KailleraPifSyncCallback(struct pif* pif)
         // Synchronize with Kaillera - this must be called exactly ONCE per emulator frame
         int ret = CoreModifyKailleraPlayValues(sync_buffer, sizeof(uint32_t));
 
-        if (ret <= 0) {
+        if (ret < 0) {
             // Game ended or network error - cache zeros and continue
             // Don't stop emulation - let user manually stop
             // Mark game as inactive so UI buttons are re-enabled
@@ -141,6 +141,12 @@ static void KailleraPifSyncCallback(struct pif* pif)
             for (int i = 0; i < MAX_PLAYERS; i++) {
                 s_CachedSyncBuffer[i] = 0;
             }
+            return;
+        }
+
+        if (ret == 0) {
+            // Frame delay period - n02 returns 0 while buffering initial frames
+            // Use cached input from previous sync (or zeros if none yet)
             return;
         }
 
