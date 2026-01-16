@@ -134,7 +134,9 @@ static void KailleraPifSyncCallback(struct pif* pif)
 
         if (ret <= 0) {
             // Game ended or network error - cache zeros and continue
-            // Don't stop emulation - let user click Start to restart or manually stop
+            // Don't stop emulation - let user manually stop
+            // Mark game as inactive so UI buttons are re-enabled
+            CoreMarkKailleraGameInactive();
             s_CachedNumReceived = 0;
             for (int i = 0; i < MAX_PLAYERS; i++) {
                 s_CachedSyncBuffer[i] = 0;

@@ -118,9 +118,8 @@ SettingsDialog::SettingsDialog(QWidget *parent, QString file) : QDialog(parent)
     // connect hotkey settings to slot
     this->commonHotkeySettings(SettingsDialogAction::ConnectSignals);
 
-#ifndef NETPLAY
+    // Hide Netplay tab - not used with Kaillera netplay
     this->innerInterfaceTabWidget->setTabVisible(static_cast<int>(SettingsDialogTab::InterfaceNetplay), false);
-#endif // !NETPLAY
 
 #ifndef UPDATER
     this->checkForUpdatesCheckBox->setHidden(true);

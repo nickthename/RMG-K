@@ -4,7 +4,7 @@
 #define MyAppName "Rosalie's Mupen GUI"
 #define MyAppPublisher "Rosalie"
 #define MyAppURL "https://github.com/Rosalie241/RMG"
-#define MyAppExeName "RMG.exe"
+#define MyAppExeName "RMG-K.exe"
 
 ; REQUIREMENTS:
 ; Specify MyAppDir, which should point to the binaries
@@ -34,7 +34,7 @@ LicenseFile={#MySrcDir}\LICENSE
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 OutputDir={#MyOutDir}
-OutputBaseFilename=RMG-Setup-Windows64-{#MyAppVer}
+OutputBaseFilename=RMG-K-Setup-Windows64-{#MyAppVer}
 SetupIconFile={#MySrcDir}\Source\RMG\UserInterface\Resource\RMG.ico
 Compression=lzma
 SolidCompression=yes

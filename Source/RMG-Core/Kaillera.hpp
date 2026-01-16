@@ -56,6 +56,10 @@ CORE_EXPORT bool CoreKailleraSendChat(std::string text);
 // End current Kaillera game session
 CORE_EXPORT bool CoreEndKailleraGame(void);
 
+// Mark Kaillera game as inactive without calling kailleraEndGame()
+// Used when game ends due to network issues or player dropping
+CORE_EXPORT void CoreMarkKailleraGameInactive(void);
+
 // Set Kaillera callbacks
 // These callbacks are invoked from Kaillera's internal thread
 // Implementations must be thread-safe!

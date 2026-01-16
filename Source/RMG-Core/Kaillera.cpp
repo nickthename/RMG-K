@@ -156,7 +156,7 @@ static bool LoadKailleraDLL(void)
     s_KailleraDLL = LoadLibraryA("kailleraclient.dll");
     if (s_KailleraDLL == nullptr)
     {
-        CoreSetError("Failed to load kailleraclient.dll. Make sure it's in the same directory as RMG.exe");
+        CoreSetError("Failed to load kailleraclient.dll. Make sure it's in the same directory as RMG-K.exe");
         return false;
     }
 
@@ -342,6 +342,13 @@ CORE_EXPORT bool CoreEndKailleraGame(void)
     return true;
 }
 
+CORE_EXPORT void CoreMarkKailleraGameInactive(void)
+{
+    // Mark game as inactive without calling kailleraEndGame()
+    // Used when the game ends due to network issues or another player dropping
+    s_GameActive = false;
+}
+
 CORE_EXPORT void CoreSetKailleraCallbacks(
     CoreKaillera::GameStartCallback gameStartCallback,
     CoreKaillera::ChatReceivedCallback chatReceivedCallback,
@@ -482,6 +489,11 @@ CORE_EXPORT bool CoreKailleraSendChat(std::string text)
 CORE_EXPORT bool CoreEndKailleraGame(void)
 {
     return true;
+}
+
+CORE_EXPORT void CoreMarkKailleraGameInactive(void)
+{
+    // No-op on non-Windows
 }
 
 CORE_EXPORT void CoreSetKailleraCallbacks(

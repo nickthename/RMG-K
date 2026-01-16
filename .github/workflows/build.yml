@@ -214,7 +214,7 @@ jobs:
           fi
 
           # Copy Windows installer
-          find artifacts -name "RMG-Setup*.exe" -exec cp {} release/ \;
+          find artifacts -name "RMG-K-Setup*.exe" -exec cp {} release/ \;
 
           ls -la release/
       - name: Create GitHub Release

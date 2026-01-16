@@ -57,7 +57,7 @@ mv "$bin_dir/usr" "$bin_dir/shared"
 $XVFB_RUN "$script_dir/lib4bin" --dst-dir "$bin_dir" \
 	--hard-links --strip --with-hooks \
 	--strace-mode --with-sharun \
-	"$bin_dir/shared/bin/RMG" \
+	"$bin_dir/shared/bin/RMG-K" \
 	"$lib_dir"/libSDL* \
 	"$lib_dir"/libspeexdsp* \
 	"$lib_dir"/libhidapi-hidraw* \

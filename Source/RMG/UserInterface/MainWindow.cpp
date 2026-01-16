@@ -831,17 +831,17 @@ void MainWindow::updateActions(bool inEmulation, bool isPaused)
     this->action_System_OpenCombo->setEnabled(!inEmulation);
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Shutdown));
     this->action_System_Shutdown->setShortcut(QKeySequence(keyBinding));
-    this->action_System_Shutdown->setEnabled(inEmulation);
-    this->menuReset->setEnabled(inEmulation && !CoreHasInitNetplay());
+    this->action_System_Shutdown->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
+    this->menuReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_SoftReset));
-    this->action_System_SoftReset->setEnabled(inEmulation && !CoreHasInitNetplay());
+    this->action_System_SoftReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     this->action_System_SoftReset->setShortcut(QKeySequence(keyBinding));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_HardReset));
-    this->action_System_HardReset->setEnabled(inEmulation && !CoreHasInitNetplay());
+    this->action_System_HardReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     this->action_System_HardReset->setShortcut(QKeySequence(keyBinding));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Resume));
     this->action_System_Pause->setChecked(isPaused);
-    this->action_System_Pause->setEnabled(inEmulation && !CoreHasInitNetplay());
+    this->action_System_Pause->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     this->action_System_Pause->setShortcut(QKeySequence(keyBinding));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Screenshot));
     this->action_System_Screenshot->setEnabled(inEmulation);
@@ -948,7 +948,7 @@ void MainWindow::updateActions(bool inEmulation, bool isPaused)
     this->action_View_Search->setEnabled(!inEmulation);
 
 #ifdef NETPLAY
-    this->action_Netplay_BrowseSessions->setEnabled(!inEmulation && this->netplaySessionDialog == nullptr);
+    this->action_Netplay_BrowseSessions->setEnabled(!inEmulation && this->netplaySessionDialog == nullptr && this->kailleraSessionManager == nullptr);
 #endif // NETPLAY
 
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_IncreaseVolume));
@@ -2133,16 +2133,24 @@ void MainWindow::on_Action_Netplay_BrowseSessions(void)
     connect(this->kailleraSessionManager, &KailleraSessionManager::gameEnded,
             this, &MainWindow::on_Kaillera_GameEnded);
 
+    // Disable Start Netplay button while Kaillera dialog is open
+    this->action_Netplay_BrowseSessions->setEnabled(false);
+
     // Show Kaillera's built-in server browser dialog
     // This is a blocking call - user will select server, join/create game
     // When they start a game, gameStarted signal will be emitted
-    if (!this->kailleraSessionManager->showServerDialog())
-    {
-        // User cancelled or error occurred
-        delete this->kailleraSessionManager;
-        this->kailleraSessionManager = nullptr;
-        CoreShutdownKaillera();
-    }
+    // Dialog stays open until user closes it
+    this->kailleraSessionManager->showServerDialog();
+
+    // Dialog closed - clean up Kaillera session
+    // (emulation may still be running - user can manually stop it)
+    delete this->kailleraSessionManager;
+    this->kailleraSessionManager = nullptr;
+    CoreShutdownKaillera();
+
+    // Re-enable Start Netplay button and update UI
+    this->action_Netplay_BrowseSessions->setEnabled(true);
+    this->updateUI(this->emulationThread->isRunning(), CoreIsEmulationPaused());
 #endif // NETPLAY
 }
 
@@ -2166,13 +2174,8 @@ void MainWindow::on_Kaillera_GameStarted(QString gameName, int playerNum, int to
     {
         this->showErrorMessage("ROM Not Found",
             "Could not find ROM: " + gameName + "\n\nPlease add it to your ROM directory and refresh the list.");
+        // Just end the Kaillera game - full cleanup happens when dialog closes
         CoreEndKailleraGame();
-        CoreShutdownKaillera();
-        if (this->kailleraSessionManager != nullptr)
-        {
-            delete this->kailleraSessionManager;
-            this->kailleraSessionManager = nullptr;
-        }
         return;
     }
 
@@ -2223,7 +2226,10 @@ void MainWindow::on_Kaillera_PlayerDropped(QString nickname, int playerNum)
 
 void MainWindow::on_Kaillera_GameEnded(void)
 {
-    // Stop emulation when game ends
+    // Mark game as inactive to re-enable UI buttons
+    CoreMarkKailleraGameInactive();
+
+    // Stop emulation when game ends (user dropped or was dropped)
     if (this->emulationThread->isRunning())
     {
         CoreStopEmulation();

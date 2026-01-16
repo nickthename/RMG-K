@@ -192,7 +192,7 @@ int main(int argc, char **argv)
     }
 #endif
 
-    QCoreApplication::setApplicationName("Rosalie's Mupen GUI");
+    QCoreApplication::setApplicationName("RMG Kaillera Edition");
     QCoreApplication::setApplicationVersion(QString::fromStdString(CoreGetVersion()));
 
     // setup commandline parser
