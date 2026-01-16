@@ -6,11 +6,15 @@ It offers a simple-to-use user interface.
 
 ## Features added:
 ### N02 Client
+<p align="center">
 <img width="494" height="329" alt="image" src="https://github.com/user-attachments/assets/b7ae15a1-dae1-4bf0-ba57-64dac1f4d35d" />
+</p>
+<p align="center">
+<img width="760" height="541" alt="image" src="https://github.com/user-attachments/assets/3afa1327-c5ff-4367-ba61-756657be8346" /></p>
 
-### Frame Delay Override
+### Frame Delay Override (Previously Ping Spoofing)
 
-This allows the users to set their own frame delay, previously called ping spoofing.
+This allows the users to set their own frame delay
 
 0 = Server sets frame delay on game start
 
@@ -20,20 +24,22 @@ This allows the users to set their own frame delay, previously called ping spoof
 - Keeps Kaillera connection alive after emulation ends (drop) for game restarts
 - Players can restart games after dropping without reconnecting to server
 
-### Improved Analog Stick Handling
+### NRage Input Similarities
 RMG-Input now uses independent per-axis scaling similar to the [USBtoN64v2](https://github.com/Ownasaurus/USBtoN64v2) adapter and N-Rage input plugin:
 - Configurable range slider (0-100%) with default 66% to match N-Rage
 - Linear scale: 100% = 127 (protocol max)
 - Per-axis deadzone handling instead of circular deadzone
+  <img width="1059" height="736" align="center" alt="Screenshot 2026-01-16 181813" src="https://github.com/user-attachments/assets/eacacb9b-f828-4486-a0f0-a8b539c8951f" />
+
 
 
 ## Showcase
 
-![RomBrowser](Package/Screenshots/RomBrowser.png)
-![InGame](Package/Screenshots/InGame.png)
-![InputSettings](Package/Screenshots/InputSettings.png)
-<img width="760" height="541" alt="image" src="https://github.com/user-attachments/assets/3afa1327-c5ff-4367-ba61-756657be8346" />
-
+<p align="center">
+<img width="729" height="624" alt="image" src="https://github.com/user-attachments/assets/d5d6a703-18d0-4085-81ba-08b9b8a83336" />
+</p>
+<p align="center">
+<img width="642" height="620" alt="image" src="https://github.com/user-attachments/assets/155f4b07-8272-4251-81b2-13cecf937f10" />
 
 ## Building
 
