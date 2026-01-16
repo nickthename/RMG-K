@@ -156,7 +156,7 @@ static bool LoadKailleraDLL(void)
     s_KailleraDLL = LoadLibraryA("kailleraclient.dll");
     if (s_KailleraDLL == nullptr)
     {
-        CoreSetError("Failed to load kailleraclient.dll. Make sure it's in the same directory as RMG.exe");
+        CoreSetError("Failed to load kailleraclient.dll. Make sure it's in the same directory as RMG-K.exe");
         return false;
     }
 

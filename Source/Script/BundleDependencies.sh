@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ./BundleDependencies.sh "./Bin/Release/RMG.exe" "./Bin/Release/"
+# ./BundleDependencies.sh "./Bin/Release/RMG-K.exe" "./Bin/Release/"
 #
 
 exe="$1"
