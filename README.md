@@ -22,17 +22,19 @@ This is a fork of RMG with Kaillera netplay support.
 - Clicking Drop will stop emulation (if player 1 does it first, it will stop emulation for everyone. Everyone must still click drop
 - After all players drop, the room owner is able to restart emulation for everyone
 
+  
+
 #### General Features
 - Timestamps
 - Direct Messaging (with colors)
-- 
 
 
+## Input
+### Yep, it's got raphnet support.
 
 
-
-### NRage Input Similarities
-RMG-Input now uses independent per-axis scaling similar to the [USBtoN64v2](https://github.com/Ownasaurus/USBtoN64v2) adapter and N-Rage input plugin:
+### RMG-Input (pronounced Nrage)
+RMG-Input was changed so it now uses independent per-axis scaling similar to the [USBtoN64v2](https://github.com/Ownasaurus/USBtoN64v2) adapter and N-Rage input plugin:
 - Configurable range slider (0-100%) with default 66% to match N-Rage
 - Linear scale: 100% = 127 (protocol max)
 - Per-axis deadzone handling instead of circular deadzone
@@ -40,11 +42,6 @@ RMG-Input now uses independent per-axis scaling similar to the [USBtoN64v2](http
 
 
 
-## Showcase
-
-<p align="center">
-<img width="729" height="624" alt="image" src="https://github.com/user-attachments/assets/d5d6a703-18d0-4085-81ba-08b9b8a83336" />
-</p>
 
 ## Building
 
