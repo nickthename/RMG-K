@@ -1,28 +1,35 @@
 # RMG-K (Rosalie's Mupen GUI - Kaillera)
 
 Rosalie's Mupen GUI is a free and open-source mupen64plus front-end written in C++.
-This is a fork of RMG with Kaillera netplay support for N64 online multiplayer.
-It offers a simple-to-use user interface.
+This is a fork of RMG with Kaillera netplay support.
+<p align="center">
+<img width="642" height="620" alt="image" src="https://github.com/user-attachments/assets/155f4b07-8272-4251-81b2-13cecf937f10" />
+</p>
 
-## Features added:
+## The Kaillera Part:
 ### N02 Client
 <p align="center">
 <img width="494" height="329" alt="image" src="https://github.com/user-attachments/assets/b7ae15a1-dae1-4bf0-ba57-64dac1f4d35d" />
 </p>
-<p align="center">
-<img width="760" height="541" alt="image" src="https://github.com/user-attachments/assets/3afa1327-c5ff-4367-ba61-756657be8346" /></p>
 
-### Frame Delay Override (Previously Ping Spoofing)
+#### Frame Delay Override (Previously Ping Spoofing)
+- This allows the users to set their own frame delay
+- 0 = Automatic, Server will assign frame delay based on ping.
+- 1-9 = sets 1, 2, 3 frames of delay and so on.
+- ToDo: Notify lobby if you are using frame delay.
 
-This allows the users to set their own frame delay
+#### Drop Actually Works!
+- Clicking Drop will stop emulation (if player 1 does it first, it will stop emulation for everyone. Everyone must still click drop
+- After all players drop, the room owner is able to restart emulation for everyone
 
-0 = Server sets frame delay on game start
+#### General Features
+- Timestamps
+- Direct Messaging (with colors)
+- 
 
-1-9 = sets 1, 2, 3 frames of delay and so on.
 
-### Connection Handling
-- Keeps Kaillera connection alive after emulation ends (drop) for game restarts
-- Players can restart games after dropping without reconnecting to server
+
+
 
 ### NRage Input Similarities
 RMG-Input now uses independent per-axis scaling similar to the [USBtoN64v2](https://github.com/Ownasaurus/USBtoN64v2) adapter and N-Rage input plugin:
@@ -38,8 +45,6 @@ RMG-Input now uses independent per-axis scaling similar to the [USBtoN64v2](http
 <p align="center">
 <img width="729" height="624" alt="image" src="https://github.com/user-attachments/assets/d5d6a703-18d0-4085-81ba-08b9b8a83336" />
 </p>
-<p align="center">
-<img width="642" height="620" alt="image" src="https://github.com/user-attachments/assets/155f4b07-8272-4251-81b2-13cecf937f10" />
 
 ## Building
 
