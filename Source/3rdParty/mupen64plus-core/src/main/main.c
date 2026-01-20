@@ -445,6 +445,7 @@ int main_set_core_defaults(void)
     ConfigSetDefaultString(g_CoreConfig, "GbCameraVideoCaptureBackend1", DEFAULT_VIDEO_CAPTURE_BACKEND, "Gameboy Camera Video Capture backend");
     ConfigSetDefaultInt(g_CoreConfig, "SaveDiskFormat", 1, "Disk Save Format (0: Full Disk Copy (*.ndr/*.d6r), 1: RAM Area Only (*.ram))");
     ConfigSetDefaultInt(g_CoreConfig, "SaveFilenameFormat", 1, "Save (SRAM/State) Filename Format (0: ROM Header Name, 1: Automatic (including partial MD5 hash))");
+    ConfigSetDefaultBool(g_CoreConfig, "DisableSaveFileLoading", 0, "Disable loading of save files (SRAM/EEPROM/FlashRAM) - useful for Kaillera netplay");
 
     /* handle upgrades */
     if (bUpgrade)

@@ -86,6 +86,7 @@ enum class SettingsID
     Core_SiDmaDuration,
     Core_SaveFileNameFormat,
     Core_GbCameraVideoCaptureBackend1,
+    Core_DisableSaveFileLoading,
 
     // (mupen64plus) Overlay Core Settings
     CoreOverlay_RandomizeInterrupt,

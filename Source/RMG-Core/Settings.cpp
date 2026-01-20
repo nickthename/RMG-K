@@ -245,6 +245,9 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::Core_GbCameraVideoCaptureBackend1:
         setting = {SETTING_SECTION_M64P, "GbCameraVideoCaptureBackend1", std::string("sdl3")};
         break;
+    case SettingsID::Core_DisableSaveFileLoading:
+        setting = {SETTING_SECTION_M64P, "DisableSaveFileLoading", false};
+        break;
 
     case SettingsID::CoreOverlay_RandomizeInterrupt:
         setting = {SETTING_SECTION_OVERLAY, "RandomizeInterrupt", true};

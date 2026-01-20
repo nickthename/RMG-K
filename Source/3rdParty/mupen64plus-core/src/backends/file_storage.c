@@ -22,11 +22,15 @@
 #include "file_storage.h"
 
 #include <stdlib.h>
+#include <string.h>
 
+#define M64P_CORE_PROTOTYPES 1
 #include "api/callbacks.h"
 #include "api/m64p_types.h"
+#include "api/m64p_config.h"
 #include "backends/api/storage_backend.h"
 #include "device/dd/dd_controller.h"
+#include "main/main.h"
 #include "main/util.h"
 #include "main/netplay.h"
 
@@ -41,6 +45,14 @@ int open_file_storage(struct file_storage* fstorage, size_t size, const char* fi
     fstorage->data = malloc(fstorage->size);
     if (fstorage->data == NULL) {
         return -1;
+    }
+
+    /* Check if save file loading is disabled (e.g., for Kaillera netplay) */
+    if (ConfigGetParamBool(g_CoreConfig, "DisableSaveFileLoading"))
+    {
+        /* Return empty/zeroed data - all players start fresh */
+        memset(fstorage->data, 0, fstorage->size);
+        return file_open_error; /* Indicates no save file was loaded */
     }
 
     /* try to load storage file content */
@@ -93,6 +105,10 @@ static size_t file_storage_size(const void* storage)
 static void file_storage_save(void* storage, size_t start, size_t size)
 {
     if (netplay_is_init() && netplay_get_controller(0) == -1)
+        return;
+
+    /* Don't save when save file loading is disabled (Kaillera netplay) */
+    if (ConfigGetParamBool(g_CoreConfig, "DisableSaveFileLoading"))
         return;
 
     struct file_storage* fstorage = (struct file_storage*)storage;
