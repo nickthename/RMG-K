@@ -365,15 +365,6 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     CoreRomType type;
     bool        netplay = !address.empty();
 
-#ifdef NETPLAY
-    // Apply deterministic settings BEFORE opening ROM for Kaillera netplay
-    // The core reads CPU emulator mode during ROM open, so this must come first
-    if (netplay && address == "KAILLERA")
-    {
-        apply_kaillera_deterministic_settings();
-    }
-#endif
-
     if (!CoreOpenRom(n64rom))
     {
         return false;
@@ -446,6 +437,13 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     apply_pif_rom_settings();
 
 #ifdef NETPLAY
+    // Apply deterministic settings AFTER all overlays for Kaillera netplay
+    // This ensures user/game-specific settings don't override critical sync settings
+    if (netplay && address == "KAILLERA")
+    {
+        apply_kaillera_deterministic_settings();
+    }
+
     // Kaillera connection happens BEFORE emulation via kailleraSelectServerDialog
     // Just verify it's initialized if netplay was requested
     if (netplay)
