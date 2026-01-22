@@ -297,13 +297,14 @@ static void apply_kaillera_deterministic_settings(void)
     // This prevents desync from players having different in-game settings saved
     CoreSettingsSetValue(SettingsID::Core_DisableSaveFileLoading, true);
 
+    // RSP plugin override commented out for testing - let users choose their RSP plugin
     // Force Static Interpreter RSP plugin (cxd4) for maximum determinism
     // HLE RSP has timing approximations, paraLLEl uses GPU which can vary between hardware
-#ifdef _WIN32
-    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.dll"));
-#else
-    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.so"));
-#endif
+// #ifdef _WIN32
+//     CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.dll"));
+// #else
+//     CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.so"));
+// #endif
 }
 #endif
 
