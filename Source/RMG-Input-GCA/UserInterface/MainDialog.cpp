@@ -77,6 +77,7 @@ MainDialog::MainDialog(QWidget* parent) : QDialog(parent)
     };
 
     // Connect mapping and clear buttons
+    QIcon clearIcon = QIcon::fromTheme("delete-back-line");
     for (int i = 0; i < N64_BUTTON_COUNT; i++)
     {
         connect(m_MappingButtons[i], &QPushButton::clicked, this, [this, i]() {
@@ -85,6 +86,8 @@ MainDialog::MainDialog(QWidget* parent) : QDialog(parent)
         connect(m_ClearButtons[i], &QPushButton::clicked, this, [this, i]() {
             onClearButtonClicked(i);
         });
+        m_ClearButtons[i]->setText("");
+        m_ClearButtons[i]->setIcon(clearIcon);
     }
 
     // Setup poll timer
@@ -297,7 +300,7 @@ void MainDialog::on_sensitivitySlider_valueChanged(int value)
 void MainDialog::on_triggerTresholdSlider_valueChanged(int value)
 {
     QString title;
-    title = "Trigger treshold: ";
+    title = "Trigger threshold: ";
     title += QString::number(value);
     title += "%";
 
@@ -307,7 +310,7 @@ void MainDialog::on_triggerTresholdSlider_valueChanged(int value)
 void MainDialog::on_cButtonTresholdSlider_valueChanged(int value)
 {
     QString title;
-    title = "C button treshold: ";
+    title = "C stick threshold: ";
     title += QString::number(value);
     title += "%";
 

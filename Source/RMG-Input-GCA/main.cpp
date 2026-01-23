@@ -78,6 +78,10 @@ static std::array<GameCubeAdapterControllerState, 4> l_ControllerState;
 static std::thread l_PollThread;
 static SettingsProfile l_Settings = {0};
 
+// Maps Control index (0-3) to physical adapter port index (0-3).
+// -1 means no controller mapped to this Control slot.
+static std::array<int, NUM_CONTROLLERS> l_ControlToPort = {-1, -1, -1, -1};
+
 // Config polling flag (true when config dialog started the poll thread)
 static bool l_ConfigPollingStarted = false;
 
@@ -458,8 +462,16 @@ EXPORT void CALL ControllerCommand(int Control, unsigned char* Command)
 
 EXPORT void CALL GetKeys(int Control, BUTTONS* Keys)
 {
+    // Use the port mapping to translate Control index to physical port
+    int port = l_ControlToPort[Control];
+    if (port < 0)
+    {
+        Keys->Value = 0;
+        return;
+    }
+
     l_ControllerStateMutex.lock();
-    GameCubeAdapterControllerState state = l_ControllerState[Control];
+    GameCubeAdapterControllerState state = l_ControllerState[port];
     l_ControllerStateMutex.unlock();
 
     if (!state.Status)
@@ -515,16 +527,24 @@ EXPORT void CALL InitiateControllers(CONTROL_INFO ControlInfo)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    // Map enabled+connected physical ports to Control slots sequentially.
+    // This ensures netplay works regardless of which adapter port the
+    // controller is plugged into (e.g. port 4 maps to Control 0).
     l_ControllerStateMutex.lock();
+    l_ControlToPort = {-1, -1, -1, -1};
+    int controlSlot = 0;
     for (int i = 0; i < NUM_CONTROLLERS; i++)
     {
-        if (!l_Settings.PortEnabled[i])
+        if (l_Settings.PortEnabled[i] && l_ControllerState[i].Status > 0)
         {
-            ControlInfo.Controls[i].Present = 0;
-            continue;
+            l_ControlToPort[controlSlot] = i;
+            controlSlot++;
         }
-        GameCubeAdapterControllerState state = l_ControllerState[i];
-        ControlInfo.Controls[i].Present = (state.Status > 0) ? 1 : 0;
+    }
+
+    for (int i = 0; i < NUM_CONTROLLERS; i++)
+    {
+        ControlInfo.Controls[i].Present = (l_ControlToPort[i] >= 0) ? 1 : 0;
     }
     l_ControllerStateMutex.unlock();
 

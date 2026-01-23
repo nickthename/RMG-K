@@ -100,7 +100,7 @@ jobs:
         if: ${{ matrix.features == 'ON' && matrix.architecture == 'x86_64' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-Portable-Linux64-${{ env.GIT_REVISION }}
+          name: RMG-K-Portable-Linux64-${{ env.GIT_REVISION }}
           path: Bin/*.AppImage
 
   build-windows:
@@ -173,13 +173,13 @@ jobs:
         if: ${{ matrix.features == 'ON' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-Portable-Windows64-${{ env.GIT_REVISION }}
+          name: RMG-K-Portable-Windows64-${{ env.GIT_REVISION }}
           path: Bin/Release/*
       - name: Upload RMG (Installer)
         if: ${{ matrix.features == 'ON' && matrix.configuration == 'Release' }}
         uses: actions/upload-artifact@v5
         with:
-          name: RMG-Setup-Windows64-${{ env.GIT_REVISION }}
+          name: RMG-K-Setup-Windows64-${{ env.GIT_REVISION }}
           path: Bin/*.exe
 
   release:
@@ -207,9 +207,9 @@ jobs:
           find artifacts -name "*.AppImage" -exec cp {} release/ \;
 
           # Zip Windows portable build
-          if [ -d "artifacts/RMG-Portable-Windows64-${{ env.VERSION }}" ]; then
-            cd "artifacts/RMG-Portable-Windows64-${{ env.VERSION }}"
-            zip -r "../../release/RMG-Portable-Windows64-${{ env.VERSION }}.zip" .
+          if [ -d "artifacts/RMG-K-Portable-Windows64-${{ env.VERSION }}" ]; then
+            cd "artifacts/RMG-K-Portable-Windows64-${{ env.VERSION }}"
+            zip -r "../../release/RMG-K-Portable-Windows64-${{ env.VERSION }}.zip" .
             cd ../..
           fi
 
