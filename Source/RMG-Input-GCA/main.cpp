@@ -22,8 +22,10 @@
 #include "GCInput.hpp"
 #include "UserInterface/MainDialog.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <thread>
 #include <array>
 #include <mutex>
@@ -294,16 +296,20 @@ static void load_settings(void)
     l_Settings.Mapping.CRight  = static_cast<GCInput>(CoreSettingsGetIntValue(SettingsID::GCAInput_Map_CRight));
 }
 
-static double apply_deadzone(const double input, const double deadzone)
+static int scale_axis(const double input, const double deadzone, const double n64Max)
 {
-    const double inputAbsolute = std::abs(input) / INT8_MAX;
+    const double inputAbs = std::abs(input);
 
-    if (inputAbsolute <= deadzone)
+    if (inputAbs <= deadzone)
     {
         return 0;
     }
 
-    return input;
+    const double deadzoneRelation = 1.0 / (1.0 - deadzone);
+    const double scaled = (inputAbs - deadzone) * deadzoneRelation * n64Max;
+
+    const int result = static_cast<int>(std::min(scaled, n64Max));
+    return (input >= 0) ? result : -result;
 }
 
 //
@@ -485,14 +491,12 @@ EXPORT void CALL GetKeys(int Control, BUTTONS* Keys)
     const int8_t x = static_cast<int8_t>(state.LeftStickX + 128);
     const int8_t y = static_cast<int8_t>(state.LeftStickY + 128);
 
-    double modX = (static_cast<double>(x) / static_cast<double>(INT8_MAX)) * N64_AXIS_PEAK * l_Settings.SensitivityValue;
-    double modY = (static_cast<double>(y) / static_cast<double>(INT8_MAX)) * N64_AXIS_PEAK * l_Settings.SensitivityValue;
+    const double inputX = static_cast<double>(x) / static_cast<double>(INT8_MAX);
+    const double inputY = static_cast<double>(y) / static_cast<double>(INT8_MAX);
+    const double n64Max = N64_AXIS_PEAK * l_Settings.SensitivityValue;
 
-    modX = apply_deadzone(modX, l_Settings.DeadzoneValue);
-    modY = apply_deadzone(modY, l_Settings.DeadzoneValue);
-
-    Keys->X_AXIS = static_cast<int>(modX);
-    Keys->Y_AXIS = static_cast<int>(modY);
+    Keys->X_AXIS = scale_axis(inputX, l_Settings.DeadzoneValue, n64Max);
+    Keys->Y_AXIS = scale_axis(inputY, l_Settings.DeadzoneValue, n64Max);
 }
 
 EXPORT void CALL InitiateControllers(CONTROL_INFO ControlInfo)
