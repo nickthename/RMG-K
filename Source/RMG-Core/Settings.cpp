@@ -1379,13 +1379,13 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GCA, "Port1Enabled", true};
         break;
     case SettingsID::GCAInput_Port2Enabled:
-        setting = {SETTING_SECTION_GCA, "Port2Enabled", true};
+        setting = {SETTING_SECTION_GCA, "Port2Enabled", false};
         break;
     case SettingsID::GCAInput_Port3Enabled:
-        setting = {SETTING_SECTION_GCA, "Port3Enabled", true};
+        setting = {SETTING_SECTION_GCA, "Port3Enabled", false};
         break;
     case SettingsID::GCAInput_Port4Enabled:
-        setting = {SETTING_SECTION_GCA, "Port4Enabled", true};
+        setting = {SETTING_SECTION_GCA, "Port4Enabled", false};
         break;
 
     case SettingsID::GCAInput_Map_A:
