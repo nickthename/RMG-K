@@ -2315,7 +2315,7 @@ QString MainWindow::findRomByName(QString gameName)
 
 void MainWindow::on_Action_Help_Github(void)
 {
-    QDesktopServices::openUrl(QUrl("https://github.com/Rosalie241/RMG"));
+    QDesktopServices::openUrl(QUrl("https://github.com/Jay-Day/RMG-K"));
 }
 
 void MainWindow::on_Action_Help_About(void)
