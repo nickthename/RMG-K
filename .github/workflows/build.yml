@@ -146,7 +146,6 @@ jobs:
           echo "GIT_REVISION=$env:revision" >> $env:GITHUB_ENV
         shell: pwsh
       - name: Download Kaillera Client
-        if: ${{ matrix.features == 'ON' }}
         run: |
           gh release download --repo Jay-Day/n02-rmg --pattern "*.zip" --dir .
           Expand-Archive -Path *.zip -DestinationPath Data/ -Force
