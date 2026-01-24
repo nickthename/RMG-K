@@ -136,6 +136,9 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GUI_OnScreenDisplayDuration:
         setting = {SETTING_SECTION_GUI, "OnScreenDisplayDuration", 3};
         break;
+    case SettingsID::GUI_AutoStartNetplayOnStartup:
+        setting = {SETTING_SECTION_GUI, "AutoStartNetplayOnStartup", false};
+        break;
     case SettingsID::GUI_Toolbar:
         setting = {SETTING_SECTION_GUI, "Toolbar", true};
         break;
