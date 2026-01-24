@@ -20,6 +20,8 @@ squashfs-root
 Package/AppImage/appimagetool
 Package/AppImage/lib4bin
 Package/AppImage/sharun
+# Kaillera client (downloaded during CI)
+Data/kailleraclient.dll
 # 3rdParty Build
 Source/3rdParty/mupen64plus-core/src/asm_defines/asm_defines_gas.h
 Source/3rdParty/mupen64plus-core/src/asm_defines/asm_defines_nasm.h
