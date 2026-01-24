@@ -154,6 +154,15 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
         this->addActions();
     }
 
+#ifdef NETPLAY
+    if (showUI && !launchROM && CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup))
+    {
+        QTimer::singleShot(0, this, [this]() {
+            this->on_Action_Netplay_BrowseSessions();
+        });
+    }
+#endif // NETPLAY
+
     return true;
 }
 
