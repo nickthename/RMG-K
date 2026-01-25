@@ -270,8 +270,20 @@ static void apply_game_coresettings_overlay(void)
 }
 
 #ifdef NETPLAY
+// Force HLE RSP plugin for Kaillera netplay - must be called BEFORE ROM open
+// so the setting takes effect when plugins are loaded
+static void apply_kaillera_rsp_override(void)
+{
+#ifdef _WIN32
+    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-hle.dll"));
+#else
+    CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-hle.so"));
+#endif
+}
+
 // Force deterministic settings for Kaillera netplay to prevent desync
 // These settings MUST be identical across all clients
+// Called AFTER overlays so user/game settings don't override these
 static void apply_kaillera_deterministic_settings(void)
 {
     // Disable RandomizeInterrupt - critical for deterministic emulation
@@ -296,15 +308,6 @@ static void apply_kaillera_deterministic_settings(void)
     // Disable save file loading so all players start with fresh/empty saves
     // This prevents desync from players having different in-game settings saved
     CoreSettingsSetValue(SettingsID::Core_DisableSaveFileLoading, true);
-
-    // RSP plugin override commented out for testing - let users choose their RSP plugin
-    // Force Static Interpreter RSP plugin (cxd4) for maximum determinism
-    // HLE RSP has timing approximations, paraLLEl uses GPU which can vary between hardware
-// #ifdef _WIN32
-//     CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.dll"));
-// #else
-//     CoreSettingsSetValue(SettingsID::Core_RSP_Plugin, std::string("mupen64plus-rsp-cxd4.so"));
-// #endif
 }
 #endif
 
@@ -374,6 +377,15 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     bool        netplay_ret = false;
     CoreRomType type;
     bool        netplay = !address.empty();
+
+#ifdef NETPLAY
+    // Apply RSP plugin override and reload plugins BEFORE ROM open
+    if (netplay && address == "KAILLERA")
+    {
+        apply_kaillera_rsp_override();
+        CoreApplyPluginSettings();  // Force reload with HLE RSP
+    }
+#endif
 
     if (!CoreOpenRom(n64rom))
     {
