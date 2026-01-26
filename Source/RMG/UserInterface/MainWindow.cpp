@@ -155,12 +155,11 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
     }
 
 #ifdef NETPLAY
-    if (showUI && !launchROM && CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup))
-    {
-        QTimer::singleShot(0, this, [this]() {
-            this->on_Action_Netplay_BrowseSessions();
-        });
-    }
+    this->ui_AutoStartNetplayOnStartupPending =
+        showUI &&
+        !launchROM &&
+        CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup);
+    this->tryAutoStartNetplayOnStartup();
 #endif // NETPLAY
 
     return true;
@@ -292,6 +291,10 @@ void MainWindow::initializeUI(bool launchROM)
             &MainWindow::on_RomBrowser_RomInformation);
     connect(this->ui_Widget_RomBrowser, &Widget::RomBrowserWidget::FileDropped, this,
             &MainWindow::on_EventFilter_FileDropped);
+#ifdef NETPLAY
+    connect(this->ui_Widget_RomBrowser, &Widget::RomBrowserWidget::RomListRefreshFinished, this,
+            &MainWindow::on_RomBrowser_RomListRefreshFinished);
+#endif // NETPLAY
 
     connect(this->ui_EventFilter, &EventFilter::on_EventFilter_KeyPressed, this,
             &MainWindow::on_EventFilter_KeyPressed);
@@ -762,6 +765,11 @@ void MainWindow::launchEmulationThread(QString cartRom, QString diskRom, bool re
     {
         this->showErrorMessage("EmulationThread::run Failed", "Cannot start emulation when netplay session is active");
         return;
+    }
+
+    if (!netplay)
+    {
+        this->ui_AutoStartNetplayOnStartupPending = false;
     }
 #endif // NETPLAY
 
@@ -1348,6 +1356,41 @@ void MainWindow::showNetplaySessionDialog(QWebSocket* webSocket, QJsonObject jso
 
     // force refresh of actions
     this->updateActions(false, false);
+}
+
+void MainWindow::tryAutoStartNetplayOnStartup(void)
+{
+    if (!this->ui_AutoStartNetplayOnStartupPending)
+    {
+        return;
+    }
+
+    if (this->ui_Widget_RomBrowser != nullptr &&
+        this->ui_Widget_RomBrowser->IsRefreshingRomList())
+    {
+        return;
+    }
+
+    if (this->kailleraSessionManager != nullptr)
+    {
+        this->ui_AutoStartNetplayOnStartupPending = false;
+        return;
+    }
+
+    this->ui_AutoStartNetplayOnStartupPending = false;
+    QTimer::singleShot(0, this, [this]() {
+        this->on_Action_Netplay_BrowseSessions();
+    });
+}
+
+void MainWindow::on_RomBrowser_RomListRefreshFinished(bool canceled)
+{
+    if (canceled)
+    {
+        return;
+    }
+
+    this->tryAutoStartNetplayOnStartup();
 }
 #endif // NETPLAY
 

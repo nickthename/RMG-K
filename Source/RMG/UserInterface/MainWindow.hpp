@@ -122,6 +122,7 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
 #ifdef NETPLAY
     Dialog::NetplaySessionDialog* netplaySessionDialog = nullptr;
     KailleraSessionManager* kailleraSessionManager = nullptr;
+    bool ui_AutoStartNetplayOnStartupPending = false;
 #endif // NETPLAY
 
     void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
@@ -168,6 +169,7 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
 #ifdef NETPLAY
     void showNetplaySessionDialog(QWebSocket* webSocket, QJsonObject json, QString sessionFile);
     QString findRomByName(QString gameName);
+    void tryAutoStartNetplayOnStartup(void);
 #endif // NETPLAY
   protected:
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
@@ -227,6 +229,7 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     void on_Kaillera_ChatReceived(QString nickname, QString message);
     void on_Kaillera_PlayerDropped(QString nickname, int playerNum);
     void on_Kaillera_GameEnded(void);
+    void on_RomBrowser_RomListRefreshFinished(bool canceled);
 #endif
 
     void on_Action_Help_Github(void);

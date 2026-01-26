@@ -169,6 +169,8 @@ class RomBrowserWidget : public QWidget
     void RomInformation(QString file);
 
     void FileDropped(QDropEvent* event);
+
+    void RomListRefreshFinished(bool canceled);
 };
 } // namespace Widget
 } // namespace UserInterface

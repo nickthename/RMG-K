@@ -1069,12 +1069,14 @@ void RomBrowserWidget::on_RomBrowserThread_Finished(bool canceled)
     // later on anyways
     if (canceled)
     {
+        emit this->RomListRefreshFinished(true);
         return;
     }
 
     if (this->listViewModel->rowCount() == 0)
     {
         this->stackedWidget->setCurrentWidget(this->emptyWidget);
+        emit this->RomListRefreshFinished(false);
         return;
     }
 
@@ -1084,11 +1086,13 @@ void RomBrowserWidget::on_RomBrowserThread_Finished(bool canceled)
     if (elapsedTime < 300)
     {
         this->startTimer(300 - elapsedTime);
+        emit this->RomListRefreshFinished(false);
         return;
     }
 
     this->stackedWidget->setCurrentWidget(this->currentViewWidget);
     this->searchWidget->setVisible(this->showSearchWidget);
+    emit this->RomListRefreshFinished(false);
 }
 
 void RomBrowserWidget::on_Action_PlayGame(void)
