@@ -168,6 +168,7 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     ~SettingsDialog(void);
 
     void ShowGameTab(void);
+    void ShowPluginsTab(void);
 };
 } // namespace Dialog
 } // namespace UserInterface

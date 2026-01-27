@@ -51,6 +51,7 @@
 #include <QMenuBar>
 #include <QString>
 #include <QTimer>
+#include <QShowEvent>
 #include <QDir>
 #include <QUrl>
 #include <QRegularExpression>
@@ -159,7 +160,8 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
         showUI &&
         !launchROM &&
         CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup);
-    this->tryAutoStartNetplayOnStartup();
+    // Note: tryAutoStartNetplayOnStartup() is called from showEvent()
+    // to ensure the main window is visible before opening Kaillera dialog
 #endif // NETPLAY
 
     return true;
@@ -249,6 +251,23 @@ void MainWindow::closeEvent(QCloseEvent *event)
     CoreShutdown();
 
     QMainWindow::closeEvent(event);
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+
+#ifdef NETPLAY
+    // Try to auto-start netplay after the window is visible
+    // singleShot(0) queues the call to run after this event completes,
+    // ensuring the window is painted before the Kaillera dialog opens
+    if (this->ui_AutoStartNetplayOnStartupPending)
+    {
+        QTimer::singleShot(0, this, [this]() {
+            this->tryAutoStartNetplayOnStartup();
+        });
+    }
+#endif // NETPLAY
 }
 
 void MainWindow::initializeUI(bool launchROM)
@@ -842,17 +861,29 @@ void MainWindow::updateActions(bool inEmulation, bool isPaused)
 
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_StartROM));
     this->action_System_StartRom->setShortcut(QKeySequence(keyBinding));
+#ifdef NETPLAY
+    this->action_System_StartRom->setEnabled(!inEmulation && this->kailleraSessionManager == nullptr);
+#else
     this->action_System_StartRom->setEnabled(!inEmulation);
+#endif
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_StartCombo));
     this->action_System_OpenCombo->setShortcut(QKeySequence(keyBinding));
     this->action_System_OpenCombo->setEnabled(!inEmulation);
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Shutdown));
     this->action_System_Shutdown->setShortcut(QKeySequence(keyBinding));
-    this->action_System_Shutdown->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
+#ifdef NETPLAY
+    this->action_System_Shutdown->setEnabled(inEmulation && !CoreHasInitNetplay() && this->kailleraSessionManager == nullptr);
+#else
+    this->action_System_Shutdown->setEnabled(inEmulation && !CoreHasInitNetplay());
+#endif
     this->menuReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_SoftReset));
-    this->action_System_SoftReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
-    this->action_System_SoftReset->setShortcut(QKeySequence(keyBinding));
+#ifdef NETPLAY
+    this->action_Netplay_Start->setEnabled(!inEmulation && this->netplaySessionDialog == nullptr && this->kailleraSessionManager == nullptr);
+#else
+    this->action_Netplay_Start->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
+#endif
+    this->action_Netplay_Start->setShortcut(QKeySequence(keyBinding));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_HardReset));
     this->action_System_HardReset->setEnabled(inEmulation && !CoreHasInitNetplay() && !CoreHasInitKaillera());
     this->action_System_HardReset->setShortcut(QKeySequence(keyBinding));
@@ -945,6 +976,7 @@ void MainWindow::updateActions(bool inEmulation, bool isPaused)
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_InputSettings));
     this->action_Settings_Input->setEnabled(CorePluginsHasConfig(CorePluginType::Input));
     this->action_Settings_Input->setShortcut(QKeySequence(keyBinding));
+    this->action_Toolbar_Input->setEnabled(CorePluginsHasConfig(CorePluginType::Input));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Settings));
     this->action_Settings_Settings->setShortcut(QKeySequence(keyBinding));
 
@@ -1133,7 +1165,7 @@ void MainWindow::configureActions(void)
     {
         // System actions
         this->action_System_StartRom, this->action_System_OpenCombo,
-        this->action_System_Shutdown, this->action_System_SoftReset,
+        this->action_System_Shutdown, this->action_Netplay_Start,
         this->action_System_HardReset, this->action_System_Pause,
         this->action_System_Screenshot, this->action_System_LimitFPS,
         this->actionSpeed25, this->actionSpeed50, this->actionSpeed75,
@@ -1256,7 +1288,11 @@ void MainWindow::connectActionSignals(void)
     connect(this->action_System_Exit, &QAction::triggered, this, &MainWindow::on_Action_System_Exit);
 
     connect(this->action_System_Shutdown, &QAction::triggered, this, &MainWindow::on_Action_System_Shutdown);
-    connect(this->action_System_SoftReset, &QAction::triggered, this, &MainWindow::on_Action_System_SoftReset);
+#ifdef NETPLAY
+    connect(this->action_Netplay_Start, &QAction::triggered, this, &MainWindow::on_Action_Netplay_BrowseSessions);
+#else
+    connect(this->action_Netplay_Start, &QAction::triggered, this, &MainWindow::on_Action_System_SoftReset);
+#endif
     connect(this->action_System_HardReset, &QAction::triggered, this, &MainWindow::on_Action_System_HardReset);
     connect(this->action_System_Pause, &QAction::triggered, this, &MainWindow::on_Action_System_Pause);
     connect(this->action_System_Screenshot, &QAction::triggered, this,
@@ -1275,6 +1311,8 @@ void MainWindow::connectActionSignals(void)
     connect(this->action_Settings_Input, &QAction::triggered, this,
             &MainWindow::on_Action_Settings_Input);
     connect(this->action_Settings_Settings, &QAction::triggered, this, &MainWindow::on_Action_Settings_Settings);
+    connect(this->action_Settings_Plugins, &QAction::triggered, this, &MainWindow::on_Action_Settings_Plugins);
+    connect(this->action_Toolbar_Input, &QAction::triggered, this, &MainWindow::on_Action_Settings_Input);
 
     connect(this->action_View_Toolbar, &QAction::toggled, this, &MainWindow::on_Action_View_Toolbar);
     connect(this->action_View_StatusBar, &QAction::toggled, this, &MainWindow::on_Action_View_StatusBar);
@@ -2028,6 +2066,34 @@ void MainWindow::on_Action_Settings_Settings(void)
     }
 }
 
+void MainWindow::on_Action_Settings_Plugins(void)
+{
+    bool isRunning = CoreIsEmulationRunning();
+    bool isPaused = CoreIsEmulationPaused();
+
+    if (isRunning && !isPaused)
+    {
+        this->on_Action_System_Pause();
+    }
+
+    Dialog::SettingsDialog dialog(this);
+    dialog.ShowPluginsTab();
+    dialog.exec();
+
+    // reload UI,
+    // because we need to keep Settings -> {type}
+    // up-to-date
+    this->updateActions(emulationThread->isRunning(), isPaused);
+
+    // update core callbacks settings
+    this->coreCallBacks->LoadSettings();
+
+    if (isRunning && !isPaused)
+    {
+        this->on_Action_System_Pause();
+    }
+}
+
 void MainWindow::on_Action_View_Toolbar(bool checked)
 {
     if (!this->ui_ShowUI)
@@ -2185,8 +2251,10 @@ void MainWindow::on_Action_Netplay_BrowseSessions(void)
     connect(this->kailleraSessionManager, &KailleraSessionManager::gameEnded,
             this, &MainWindow::on_Kaillera_GameEnded);
 
-    // Disable Start Netplay button while Kaillera dialog is open
+    // Disable buttons while Kaillera dialog is open
     this->action_Netplay_BrowseSessions->setEnabled(false);
+    this->action_Netplay_Start->setEnabled(false);
+    this->action_System_StartRom->setEnabled(false);
 
     // Show Kaillera's built-in server browser dialog
     // This is a blocking call - user will select server, join/create game
@@ -2200,8 +2268,10 @@ void MainWindow::on_Action_Netplay_BrowseSessions(void)
     this->kailleraSessionManager = nullptr;
     CoreShutdownKaillera();
 
-    // Re-enable Start Netplay button and update UI
+    // Re-enable buttons and update UI
     this->action_Netplay_BrowseSessions->setEnabled(true);
+    this->action_Netplay_Start->setEnabled(true);
+    this->action_System_StartRom->setEnabled(true);
     this->updateUI(this->emulationThread->isRunning(), CoreIsEmulationPaused());
 #endif // NETPLAY
 }

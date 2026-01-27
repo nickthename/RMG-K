@@ -139,6 +139,11 @@ void SettingsDialog::ShowGameTab(void)
     this->tabWidget->setCurrentIndex(3);
 }
 
+void SettingsDialog::ShowPluginsTab(void)
+{
+    this->tabWidget->setCurrentIndex(4);
+}
+
 int SettingsDialog::currentIndex(void)
 {
     int currentIndex = this->tabWidget->currentIndex();

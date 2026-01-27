@@ -40,7 +40,7 @@
      <property name="icon">
       <iconset theme="restart-line"/>
      </property>
-     <addaction name="action_System_SoftReset"/>
+     <addaction name="action_Netplay_Start"/>
      <addaction name="action_System_HardReset"/>
     </widget>
     <widget class="QMenu" name="menuCurrent_Save_State">
@@ -85,7 +85,6 @@
      <addaction name="actionSpeed300"/>
     </widget>
     <addaction name="action_System_StartRom"/>
-    <addaction name="action_System_OpenCombo"/>
     <addaction name="separator"/>
     <addaction name="action_System_Shutdown"/>
     <addaction name="menuReset"/>
@@ -170,6 +169,9 @@
    <property name="movable">
     <bool>true</bool>
    </property>
+   <property name="styleSheet">
+    <string>QToolButton { min-width: 70px; }</string>
+   </property>
    <property name="toolButtonStyle">
     <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
    </property>
@@ -183,16 +185,14 @@
     <bool>false</bool>
    </attribute>
    <addaction name="action_System_StartRom"/>
-   <addaction name="action_System_OpenCombo"/>
-   <addaction name="separator"/>
    <addaction name="action_System_Shutdown"/>
-   <addaction name="action_System_SoftReset"/>
-   <addaction name="action_System_Pause"/>
-   <addaction name="action_System_Screenshot"/>
+   <addaction name="separator"/>
+   <addaction name="action_Netplay_Start"/>
    <addaction name="separator"/>
    <addaction name="action_View_Fullscreen"/>
-   <addaction name="separator"/>
    <addaction name="action_Settings_Settings"/>
+   <addaction name="action_Settings_Plugins"/>
+   <addaction name="action_Toolbar_Input"/>
   </widget>
   <action name="action_System_StartRom">
    <property name="icon">
@@ -204,10 +204,10 @@
   </action>
   <action name="action_System_OpenCombo">
    <property name="icon">
-    <iconset theme="file-line"/>
+    <iconset theme="aed-electrodes-fill"/>
    </property>
    <property name="text">
-    <string>Start Co&amp;mbo</string>
+    <string>&amp;P2P</string>
    </property>
   </action>
   <action name="action_System_Shutdown">
@@ -218,12 +218,12 @@
     <string>S&amp;hutdown</string>
    </property>
   </action>
-  <action name="action_System_SoftReset">
+  <action name="action_Netplay_Start">
    <property name="icon">
-    <iconset theme="restart-line"/>
+    <iconset theme="server-fill"/>
    </property>
    <property name="text">
-    <string>&amp;Soft Reset</string>
+    <string>&amp;Netplay</string>
    </property>
   </action>
   <action name="action_System_HardReset">
@@ -438,6 +438,22 @@
    </property>
    <property name="text">
     <string>&amp;Settings</string>
+   </property>
+  </action>
+  <action name="action_Settings_Plugins">
+   <property name="icon">
+    <iconset theme="plug-line"/>
+   </property>
+   <property name="text">
+    <string>&amp;Plugins</string>
+   </property>
+  </action>
+  <action name="action_Toolbar_Input">
+   <property name="icon">
+    <iconset theme="gamepad-line"/>
+   </property>
+   <property name="text">
+    <string>&amp;Input</string>
    </property>
   </action>
   <action name="action_View_Fullscreen">
