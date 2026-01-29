@@ -2356,7 +2356,7 @@
                     <item>
                      <widget class="QSpinBox" name="gameOverclockingFactorSpinBox">
                       <property name="maximum">
-                       <number>20</number>
+                       <number>31</number>
                       </property>
                      </widget>
                     </item>
