@@ -38,6 +38,10 @@ done
 "$path/windeployqt6" --exclude-plugins qpdf,qwebp,qgif,qtga,qtuiotouchplugin,qglib,qtiff,qmng,qwbmp \
 				--no-translations "$exe"
 
+# remove D3Dcompiler_47.dll - causes conflicts with Discord overlay injection
+# RMG-K uses OpenGL exclusively; Windows system copy is used if ever needed
+rm -f "$bin_dir/D3Dcompiler_47.dll"
+
 # needed by Qt at runtime
 cp "$path/libcrypto-3-x64.dll" "$bin_dir/"
 cp "$path/libssl-3-x64.dll"    "$bin_dir/"
