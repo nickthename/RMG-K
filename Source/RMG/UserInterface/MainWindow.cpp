@@ -669,6 +669,11 @@ void MainWindow::checkRaphnetPluginMismatch(void)
         {
             this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
         }
+
+        // Update input settings button enabled state
+        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
+        this->action_Settings_Input->setEnabled(hasInputConfig);
+        this->action_Toolbar_Input->setEnabled(hasInputConfig);
     }
     else
     {
@@ -2136,6 +2141,11 @@ void MainWindow::on_Action_Settings_Input(void)
         {
             this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
         }
+
+        // Update input settings button enabled state
+        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
+        this->action_Settings_Input->setEnabled(hasInputConfig);
+        this->action_Toolbar_Input->setEnabled(hasInputConfig);
     }
 }
 
