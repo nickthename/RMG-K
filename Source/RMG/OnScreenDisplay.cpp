@@ -44,7 +44,8 @@ static float       l_TextRed         = 1.0f;
 static float       l_TextGreen       = 1.0f;
 static float       l_TextBlue        = 1.0f;
 static float       l_TextAlpha       = 1.0f;
-static int         l_MessageDuration = 3;
+static int         l_MessageDuration = 6;
+static size_t      l_KailleraChatMaxMessages = 5;
 
 //
 // Exported Functions
@@ -93,6 +94,12 @@ void OnScreenDisplayLoadSettings(void)
     l_MessagePaddingX = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingX);
     l_MessagePaddingY = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingY);
     l_MessageDuration = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayDuration);
+    int maxChatMessages = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages);
+    if (maxChatMessages < 1)
+    {
+        maxChatMessages = 1;
+    }
+    l_KailleraChatMaxMessages = static_cast<size_t>(maxChatMessages);
 
     std::vector<int> backgroundColor = CoreSettingsGetIntListValue(SettingsID::GUI_OnScreenDisplayBackgroundColor);
     std::vector<int> textColor       = CoreSettingsGetIntListValue(SettingsID::GUI_OnScreenDisplayTextColor);
@@ -109,6 +116,11 @@ void OnScreenDisplayLoadSettings(void)
         l_TextGreen = textColor.at(1) / 255.0f;
         l_TextBlue  = textColor.at(2) / 255.0f;
         l_TextAlpha = textColor.at(3) / 255.0f;
+    }
+
+    while (l_KailleraChatMessages.size() > l_KailleraChatMaxMessages)
+    {
+        l_KailleraChatMessages.pop_front();
     }
 }
 
@@ -150,6 +162,10 @@ void OnScreenDisplaySetKailleraChatMessage(std::string message)
     }
 
     l_KailleraChatMessages.push_back({std::move(message), std::chrono::high_resolution_clock::now()});
+    while (l_KailleraChatMessages.size() > l_KailleraChatMaxMessages)
+    {
+        l_KailleraChatMessages.pop_front();
+    }
 }
 
 void OnScreenDisplayRender(void)

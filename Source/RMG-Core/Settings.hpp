@@ -32,6 +32,7 @@ enum class SettingsID
     GUI_OnScreenDisplayBackgroundColor,
     GUI_OnScreenDisplayTextColor,
     GUI_OnScreenDisplayDuration,
+    GUI_OnScreenDisplayMaxMessages,
     GUI_AutoStartNetplayOnStartup,
     GUI_Toolbar,
     GUI_ToolbarArea,

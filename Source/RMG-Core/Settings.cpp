@@ -134,7 +134,10 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GUI, "OnScreenDisplayTextColor", std::string("255;255;255;255")};
         break;
     case SettingsID::GUI_OnScreenDisplayDuration:
-        setting = {SETTING_SECTION_GUI, "OnScreenDisplayDuration", 3};
+        setting = {SETTING_SECTION_GUI, "OnScreenDisplayDuration", 6};
+        break;
+    case SettingsID::GUI_OnScreenDisplayMaxMessages:
+        setting = {SETTING_SECTION_GUI, "OnScreenDisplayMaxMessages", 5};
         break;
     case SettingsID::GUI_AutoStartNetplayOnStartup:
         setting = {SETTING_SECTION_GUI, "AutoStartNetplayOnStartup", false};
