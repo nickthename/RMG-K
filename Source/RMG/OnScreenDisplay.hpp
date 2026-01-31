@@ -27,6 +27,10 @@ bool OnScreenDisplaySetDisplaySize(int width, int height);
 // sets the current message to the OSD
 void OnScreenDisplaySetMessage(std::string message);
 
+// sets the current Kaillera in-game chat message to the OSD
+// (rendered at the bottom of the screen, independent of the general OSD enable flag)
+void OnScreenDisplaySetKailleraChatMessage(std::string message);
+
 // renders the OSD
 void OnScreenDisplayRender(void);
 

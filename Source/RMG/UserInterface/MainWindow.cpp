@@ -2325,9 +2325,23 @@ void MainWindow::on_Kaillera_GameStarted(QString gameName, int playerNum, int to
 
 void MainWindow::on_Kaillera_ChatReceived(QString nickname, QString message)
 {
-    // For now, just log to console
-    // In the future, could show in a chat dialog
-    qDebug() << "[Kaillera Chat]" << nickname << ":" << message;
+#ifdef _WIN32
+    // Only show in-game Kaillera chat (not lobby chat).
+    if (!CoreHasInitKaillera() || !this->emulationThread->isRunning())
+    {
+        return;
+    }
+
+    nickname = nickname.trimmed();
+    message  = message.trimmed();
+    message.replace('\r', ' ');
+    message.replace('\n', ' ');
+
+    OnScreenDisplaySetKailleraChatMessage("<" + nickname.toStdString() + "> " + message.toStdString());
+#else
+    (void)nickname;
+    (void)message;
+#endif
 }
 
 void MainWindow::on_Kaillera_PlayerDropped(QString nickname, int playerNum)
@@ -2350,6 +2364,8 @@ void MainWindow::on_Kaillera_GameEnded(void)
 {
     // Mark game as inactive to re-enable UI buttons
     CoreMarkKailleraGameInactive();
+
+    OnScreenDisplaySetKailleraChatMessage("");
 
     // Stop emulation when game ends (user dropped or was dropped)
     if (this->emulationThread->isRunning())
