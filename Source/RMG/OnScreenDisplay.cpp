@@ -14,6 +14,7 @@
 #include <backends/imgui_impl_opengl3.h>
 #include <imgui.h>
 #include <chrono>
+#include <deque>
 
 //
 // Local Variables
@@ -25,7 +26,13 @@ static bool l_RenderingPaused = false;
 
 static std::chrono::time_point<std::chrono::high_resolution_clock> l_MessageTime;
 static std::string l_Message;
-static std::string l_KailleraChatMessage;
+struct KailleraChatEntry
+{
+    std::string message;
+    std::chrono::time_point<std::chrono::high_resolution_clock> time;
+};
+
+static std::deque<KailleraChatEntry> l_KailleraChatMessages;
 static int         l_MessagePosition = 1;
 static float       l_MessagePaddingX = 20.0f;
 static float       l_MessagePaddingY = 20.0f;
@@ -74,7 +81,7 @@ void OnScreenDisplayShutdown(void)
     ImGui::DestroyContext();
 
     l_Message         = "";
-    l_KailleraChatMessage = "";
+    l_KailleraChatMessages.clear();
     l_Initialized     = false;
     l_RenderingPaused = false;
 }
@@ -136,7 +143,13 @@ void OnScreenDisplaySetKailleraChatMessage(std::string message)
         return;
     }
 
-    l_KailleraChatMessage = std::move(message);
+    if (message.empty())
+    {
+        l_KailleraChatMessages.clear();
+        return;
+    }
+
+    l_KailleraChatMessages.push_back({std::move(message), std::chrono::high_resolution_clock::now()});
 }
 
 void OnScreenDisplayRender(void)
@@ -150,7 +163,18 @@ void OnScreenDisplayRender(void)
 
     const bool hasSystemMessage = l_Enabled && !l_Message.empty() &&
         (std::chrono::duration_cast<std::chrono::seconds>(currentTime - l_MessageTime).count() < l_MessageDuration);
-    const bool hasKailleraChatMessage = !l_KailleraChatMessage.empty();
+
+    while (!l_KailleraChatMessages.empty())
+    {
+        const auto ageSeconds = std::chrono::duration_cast<std::chrono::seconds>(currentTime - l_KailleraChatMessages.front().time).count();
+        if (ageSeconds < l_MessageDuration)
+        {
+            break;
+        }
+        l_KailleraChatMessages.pop_front();
+    }
+
+    const bool hasKailleraChatMessage = l_Enabled && !l_KailleraChatMessages.empty();
 
     if (!hasSystemMessage && !hasKailleraChatMessage)
     {
@@ -197,14 +221,55 @@ void OnScreenDisplayRender(void)
 
     if (hasKailleraChatMessage)
     {
-        ImGui::SetNextWindowPos(ImVec2(l_MessagePaddingX, io.DisplaySize.y - l_MessagePaddingY), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(l_BackgroundRed, l_BackgroundGreen, l_BackgroundBlue, l_BackgroundAlpha));
+        ImGui::PushStyleColor(ImGuiCol_Text,     ImVec4(l_TextRed, l_TextGreen, l_TextBlue, l_TextAlpha));
 
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.65f));
-        ImGui::PushStyleColor(ImGuiCol_Text,     ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        float baseX = 0.0f;
+        float baseY = 0.0f;
+        ImVec2 pivot(0.0f, 0.0f);
+        switch (l_MessagePosition)
+        {
+        default:
+        case 0: // left bottom
+            baseX = l_MessagePaddingX;
+            baseY = io.DisplaySize.y - l_MessagePaddingY;
+            pivot = ImVec2(0.0f, 1.0f);
+            break;
+        case 1: // left top
+            baseX = l_MessagePaddingX;
+            baseY = l_MessagePaddingY;
+            pivot = ImVec2(0.0f, 0.0f);
+            break;
+        case 2: // right top
+            baseX = io.DisplaySize.x - l_MessagePaddingX;
+            baseY = l_MessagePaddingY;
+            pivot = ImVec2(1.0f, 0.0f);
+            break;
+        case 3: // right bottom
+            baseX = io.DisplaySize.x - l_MessagePaddingX;
+            baseY = io.DisplaySize.y - l_MessagePaddingY;
+            pivot = ImVec2(1.0f, 1.0f);
+            break;
+        }
 
-        ImGui::Begin("Kaillera Chat", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
-        ImGui::Text("%s", l_KailleraChatMessage.c_str());
-        ImGui::End();
+        const bool anchorBottom = (l_MessagePosition == 0 || l_MessagePosition == 3);
+        const float stackSpacingFactor = 1.5f;
+        float offsetY = 0.0f;
+        int messageIndex = 0;
+
+        for (auto messageIter = l_KailleraChatMessages.rbegin(); messageIter != l_KailleraChatMessages.rend(); ++messageIter, ++messageIndex)
+        {
+            const float posY = anchorBottom ? (baseY - offsetY) : (baseY + offsetY);
+            ImGui::SetNextWindowPos(ImVec2(baseX, posY), ImGuiCond_Always, pivot);
+
+            const std::string windowName = "Kaillera Chat##" + std::to_string(messageIndex);
+            ImGui::Begin(windowName.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
+            ImGui::Text("%s", messageIter->message.c_str());
+            const ImVec2 windowSize = ImGui::GetWindowSize();
+            ImGui::End();
+
+            offsetY += windowSize.y * stackSpacingFactor;
+        }
 
         ImGui::PopStyleColor(2);
     }
