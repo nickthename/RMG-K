@@ -506,6 +506,7 @@ void SettingsDialog::loadInterfaceOSDSettings(void)
     this->osdVerticalPaddingSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingY));
     this->osdHorizontalPaddingSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingX));
     this->osdDurationSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayDuration));
+    this->osdScaleDoubleSpinBox->setValue(CoreSettingsGetFloatValue(SettingsID::GUI_OnScreenDisplayScale));
     this->osdMaxMessagesSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages));
 
     std::vector<int> backgroundColor = CoreSettingsGetIntListValue(SettingsID::GUI_OnScreenDisplayBackgroundColor);
@@ -672,6 +673,7 @@ void SettingsDialog::loadDefaultInterfaceOSDSettings(void)
     this->osdVerticalPaddingSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayPaddingY));
     this->osdHorizontalPaddingSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayPaddingX));
     this->osdDurationSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayDuration));
+    this->osdScaleDoubleSpinBox->setValue(CoreSettingsGetDefaultFloatValue(SettingsID::GUI_OnScreenDisplayScale));
     this->osdMaxMessagesSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages));
 
     const std::vector<int> backgroundColor = CoreSettingsGetDefaultIntListValue(SettingsID::GUI_OnScreenDisplayBackgroundColor);
@@ -915,6 +917,7 @@ void SettingsDialog::saveInterfaceOSDSettings(void)
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayPaddingY, this->osdVerticalPaddingSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayPaddingX, this->osdHorizontalPaddingSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayDuration, this->osdDurationSpinBox->value());
+    CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayScale, static_cast<float>(this->osdScaleDoubleSpinBox->value()));
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayMaxMessages, this->osdMaxMessagesSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayBackgroundColor, std::vector<int>({ this->currentBackgroundColor.red(),
                                                                                             this->currentBackgroundColor.green(),

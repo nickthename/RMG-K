@@ -136,6 +136,9 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GUI_OnScreenDisplayDuration:
         setting = {SETTING_SECTION_GUI, "OnScreenDisplayDuration", 6};
         break;
+    case SettingsID::GUI_OnScreenDisplayScale:
+        setting = {SETTING_SECTION_GUI, "OnScreenDisplayScale", 1.0f};
+        break;
     case SettingsID::GUI_OnScreenDisplayMaxMessages:
         setting = {SETTING_SECTION_GUI, "OnScreenDisplayMaxMessages", 5};
         break;
