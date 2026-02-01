@@ -67,6 +67,8 @@ public slots:
     void on_ControllerWidget_UserProfileAdded(QString, QString);
     void on_ControllerWidget_UserProfileRemoved(QString, QString);
 
+    void on_ControllerWidget_RaphnetPluginSwitchRequested();
+
     void on_tabWidget_currentChanged(int);
 
     void on_SDLThread_DeviceFound(QString, QString, QString, SDL_JoystickID);

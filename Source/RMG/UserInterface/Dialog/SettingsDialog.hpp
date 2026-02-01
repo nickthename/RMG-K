@@ -125,6 +125,8 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     void commonHotkeySettings(SettingsDialogAction);
     void commonPluginSettings(SettingsDialogAction);
 
+    QString getInputPluginDisplayName(const QString& fileName, const QString& originalName);
+
     void setIconsForEmulationInfoText(void);
     void hideEmulationInfoText(void);
 

@@ -73,6 +73,7 @@
 #include <RMG-Core/Emulation.hpp>
 #include <RMG-Core/SaveState.hpp>
 #include <RMG-Core/Settings.hpp>
+#include <RMG-Core/Plugins.hpp>
 #include <RMG-Core/Netplay.hpp>
 #include <RMG-Core/Kaillera.hpp>
 #include <RMG-Core/Version.hpp>
@@ -163,6 +164,9 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
     // Note: tryAutoStartNetplayOnStartup() is called from showEvent()
     // to ensure the main window is visible before opening Kaillera dialog
 #endif // NETPLAY
+
+    // Check for raphnet plugin mismatch after window is visible
+    this->ui_CheckRaphnetPluginMismatchPending = showUI && !launchROM;
 
     return true;
 }
@@ -268,6 +272,15 @@ void MainWindow::showEvent(QShowEvent *event)
         });
     }
 #endif // NETPLAY
+
+    // Check for raphnet plugin mismatch after the window is visible
+    if (this->ui_CheckRaphnetPluginMismatchPending)
+    {
+        this->ui_CheckRaphnetPluginMismatchPending = false;
+        QTimer::singleShot(0, this, [this]() {
+            this->checkRaphnetPluginMismatch();
+        });
+    }
 }
 
 void MainWindow::initializeUI(bool launchROM)
@@ -589,6 +602,85 @@ void MainWindow::showErrorMessage(QString text, QString details, bool force)
     msgBox->show();
 
     this->ui_MessageBoxList.append(msgBox);
+}
+
+void MainWindow::checkRaphnetPluginMismatch(void)
+{
+    // Check if user has previously declined this prompt
+    if (CoreSettingsGetBoolValue(SettingsID::GUI_DontAskRaphnetPluginSwitch))
+    {
+        return;
+    }
+
+    // Check if the current input plugin is the generic RMG-Input
+    std::string inputPlugin = CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin);
+
+    // Only check if using RMG-Input (not raphnetraw or GCA)
+    if (inputPlugin.find("RMG-Input") == std::string::npos ||
+        inputPlugin.find("raphnetraw") != std::string::npos ||
+        inputPlugin.find("GCA") != std::string::npos)
+    {
+        return;
+    }
+
+    // Check each player's configured device name for raphnet adapters
+    bool foundRaphnet = false;
+    for (int i = 0; i < 4; i++)
+    {
+        std::string section = "Rosalie's Mupen GUI - Input Plugin Profile " + std::to_string(i);
+        std::string deviceName = CoreSettingsGetStringValue(SettingsID::Input_DeviceName, section);
+
+        // Case-insensitive check for "raphnet"
+        std::string deviceNameLower = deviceName;
+        std::transform(deviceNameLower.begin(), deviceNameLower.end(), deviceNameLower.begin(), ::tolower);
+
+        if (deviceNameLower.find("raphnet") != std::string::npos)
+        {
+            foundRaphnet = true;
+            break;
+        }
+    }
+
+    if (!foundRaphnet)
+    {
+        return;
+    }
+
+    // Show dialog asking user if they want to switch to raphnetraw
+    QMessageBox::StandardButton result = QMessageBox::question(
+        this,
+        tr("raphnet Adapter Detected"),
+        tr("A raphnet adapter is configured but you're using the generic input plugin. "
+           "Would you like to switch to the raphnetraw plugin? (recommended)"),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes
+    );
+
+    if (result == QMessageBox::Yes)
+    {
+#ifdef _WIN32
+        CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, std::string("mupen64plus-input-raphnetraw.dll"));
+#else
+        CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, std::string("mupen64plus-input-raphnetraw.so"));
+#endif
+        CoreSettingsSave();
+
+        if (!CoreApplyPluginSettings())
+        {
+            this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
+        }
+
+        // Update input settings button enabled state
+        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
+        this->action_Settings_Input->setEnabled(hasInputConfig);
+        this->action_Toolbar_Input->setEnabled(hasInputConfig);
+    }
+    else
+    {
+        // User declined, don't ask again
+        CoreSettingsSetValue(SettingsID::GUI_DontAskRaphnetPluginSwitch, true);
+        CoreSettingsSave();
+    }
 }
 
 void MainWindow::updateUI(bool inEmulation, bool isPaused)
@@ -2036,7 +2128,25 @@ void MainWindow::on_Action_Settings_Rsp(void)
 
 void MainWindow::on_Action_Settings_Input(void)
 {
+    // Clear the plugin switch flag before opening config
+    CoreSettingsSetValue(SettingsID::Internal_InputPluginSwitchRequested, false);
+
     CorePluginsOpenConfig(CorePluginType::Input, this);
+
+    // Check if a plugin switch was requested (e.g., raphnet to raphnetraw)
+    if (CoreSettingsGetBoolValue(SettingsID::Internal_InputPluginSwitchRequested))
+    {
+        CoreSettingsSetValue(SettingsID::Internal_InputPluginSwitchRequested, false);
+        if (!CoreApplyPluginSettings())
+        {
+            this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
+        }
+
+        // Update input settings button enabled state
+        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
+        this->action_Settings_Input->setEnabled(hasInputConfig);
+        this->action_Toolbar_Input->setEnabled(hasInputConfig);
+    }
 }
 
 void MainWindow::on_Action_Settings_Settings(void)

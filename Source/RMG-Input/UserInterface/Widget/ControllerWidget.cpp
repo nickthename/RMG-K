@@ -810,6 +810,36 @@ void ControllerWidget::on_inputDeviceComboBox_currentIndexChanged(int value)
         deviceData.device = { };
     }
 
+    // Check if this is a raphnet adapter and prompt user to switch plugin
+    if (deviceData.device.type == InputDeviceType::Joystick)
+    {
+        QString deviceName = QString::fromStdString(deviceData.device.name);
+        if (deviceName.contains("raphnet", Qt::CaseInsensitive))
+        {
+            QMessageBox::StandardButton result = QMessageBox::question(
+                this,
+                tr("raphnet Adapter Detected"),
+                tr("A raphnet adapter has been detected. Would you like to switch the input plugin to raphnetraw? (recommended)"),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::Yes
+            );
+
+            if (result == QMessageBox::Yes)
+            {
+                // Set the input plugin to raphnetraw
+#ifdef _WIN32
+                CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, std::string("mupen64plus-input-raphnetraw.dll"));
+#else
+                CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, std::string("mupen64plus-input-raphnetraw.so"));
+#endif
+                CoreSettingsSetValue(SettingsID::Internal_InputPluginSwitchRequested, true);
+                CoreSettingsSave();
+                emit this->RaphnetPluginSwitchRequested();
+                return;
+            }
+        }
+    }
+
     // set whether auto configure button is enabled
     this->autoConfigureButton->setEnabled(deviceData.inputProfile.valid);
 

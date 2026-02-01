@@ -57,6 +57,8 @@ MainDialog::MainDialog(QWidget* parent, Thread::SDLThread* sdlThread, bool romCo
             &MainDialog::on_ControllerWidget_UserProfileAdded);
         connect(widget, &Widget::ControllerWidget::UserProfileRemoved, this,
             &MainDialog::on_ControllerWidget_UserProfileRemoved);
+        connect(widget, &Widget::ControllerWidget::RaphnetPluginSwitchRequested, this,
+            &MainDialog::on_ControllerWidget_RaphnetPluginSwitchRequested);
     }
 
     // initialize input profile DB
@@ -274,6 +276,12 @@ void MainDialog::on_ControllerWidget_UserProfileRemoved(QString name, QString se
     {
         controllerWidget->RemoveUserProfile(name, section);
     }
+}
+
+void MainDialog::on_ControllerWidget_RaphnetPluginSwitchRequested()
+{
+    // Close the dialog to allow the main window to switch the plugin
+    QDialog::reject();
 }
 
 void MainDialog::on_tabWidget_currentChanged(int index)

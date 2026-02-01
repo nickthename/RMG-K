@@ -381,11 +381,19 @@ void SettingsDialog::loadGamePluginSettings(void)
         index = (static_cast<int>(p.Type) - 1);
 
         comboBox = comboBoxArray[index];
-        comboBox->addItem(QString::fromStdString(p.Name), QString::fromStdString(p.File));
+        pluginName = QString::fromStdString(p.Name);
+
+        // Use friendly display names for input plugins (index 3)
+        if (index == 3)
+        {
+            pluginName = getInputPluginDisplayName(QString::fromStdString(p.File), pluginName);
+        }
+
+        comboBox->addItem(pluginName, QString::fromStdString(p.File));
 
         if (pluginFileNames[index] == QString::fromStdString(p.File))
         {
-            comboBox->setCurrentText(QString::fromStdString(p.Name));
+            comboBox->setCurrentText(pluginName);
             pluginFound[index] = true;
         }
     }
@@ -1097,9 +1105,28 @@ void SettingsDialog::commonHotkeySettings(SettingsDialogAction action)
     }
 }
 
+QString SettingsDialog::getInputPluginDisplayName(const QString& fileName, const QString& originalName)
+{
+    // Map input plugin filenames to friendly display names
+    if (fileName.contains("RMG-Input-GCA", Qt::CaseInsensitive))
+    {
+        return tr("GameCube Adapter");
+    }
+    else if (fileName.contains("RMG-Input", Qt::CaseInsensitive))
+    {
+        return tr("Generic USB Input");
+    }
+    else if (fileName.contains("raphnetraw", Qt::CaseInsensitive))
+    {
+        return tr("Raphnetraw N64 Adapter");
+    }
+    // Return original name for unknown plugins
+    return originalName;
+}
+
 void SettingsDialog::commonPluginSettings(SettingsDialogAction action)
 {
-    QComboBox *comboBoxArray[] = {this->rspPluginsComboBox, this->videoPluginsComboBox, 
+    QComboBox *comboBoxArray[] = {this->rspPluginsComboBox, this->videoPluginsComboBox,
                                     this->audioPluginsComboBox, this->inputPluginsComboBox};
     SettingsID settingsIdArray[] = {SettingsID::Core_RSP_Plugin, SettingsID::Core_GFX_Plugin, 
                                     SettingsID::Core_AUDIO_Plugin, SettingsID::Core_INPUT_Plugin};
@@ -1135,6 +1162,12 @@ void SettingsDialog::commonPluginSettings(SettingsDialogAction action)
         comboBox = comboBoxArray[index];
         pluginFileName = pluginFileNames[index];
         pluginName = QString::fromStdString(p.Name);
+
+        // Use friendly display names for input plugins (index 3)
+        if (index == 3)
+        {
+            pluginName = getInputPluginDisplayName(QString::fromStdString(p.File), pluginName);
+        }
 
         comboBox->addItem(pluginName, QString::fromStdString(p.File));
 

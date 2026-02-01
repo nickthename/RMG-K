@@ -51,6 +51,9 @@ static m64p_handle              l_sectionHandle = nullptr;
 static std::vector<std::string> l_sectionList;
 static std::vector<std::string> l_keyList;
 
+// Internal runtime settings (not persisted to config file)
+static bool l_InputPluginSwitchRequested = false;
+
 //
 // Local Functions
 //
@@ -168,6 +171,9 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::GUI_ConfirmExitWhileInGame:
         setting = {SETTING_SECTION_GUI, "ConfirmExitWhileInGame", true};
+        break;
+    case SettingsID::GUI_DontAskRaphnetPluginSwitch:
+        setting = {SETTING_SECTION_GUI, "DontAskRaphnetPluginSwitch", false};
         break;
     case SettingsID::GUI_Version:
         setting = {SETTING_SECTION_GUI, "Version", CoreGetVersion()};
@@ -1439,6 +1445,11 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GCAInput_Map_CRight:
         setting = {SETTING_SECTION_GCA, "Map_CRight", 17};
         break;
+
+    // Internal settings (runtime-only, not persisted)
+    case SettingsID::Internal_InputPluginSwitchRequested:
+        setting = {"", "InputPluginSwitchRequested", false};
+        break;
     }
 
     return setting;
@@ -1971,6 +1982,13 @@ CORE_EXPORT bool CoreSettingsSetValue(SettingsID settingId, int value)
 
 CORE_EXPORT bool CoreSettingsSetValue(SettingsID settingId, bool value)
 {
+    // Handle internal runtime settings
+    if (settingId == SettingsID::Internal_InputPluginSwitchRequested)
+    {
+        l_InputPluginSwitchRequested = value;
+        return true;
+    }
+
     l_Setting setting = get_setting(settingId);
     int intValue = value ? 1 : 0;
     return config_option_set(setting.Section, setting.Key, M64TYPE_BOOL, &intValue);
@@ -2140,6 +2158,12 @@ CORE_EXPORT int CoreSettingsGetIntValue(SettingsID settingId)
 
 CORE_EXPORT bool CoreSettingsGetBoolValue(SettingsID settingId)
 {
+    // Handle internal runtime settings
+    if (settingId == SettingsID::Internal_InputPluginSwitchRequested)
+    {
+        return l_InputPluginSwitchRequested;
+    }
+
     l_Setting setting = get_setting(settingId);
     int value = setting.DefaultValue.index() == 0 ? 0 : (std::get<bool>(setting.DefaultValue) ? 1 : 0);
     config_option_get(setting.Section, setting.Key, M64TYPE_BOOL, &value, sizeof(value));

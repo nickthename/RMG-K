@@ -126,6 +126,8 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     bool ui_AutoStartNetplayOnStartupPending = false;
 #endif // NETPLAY
 
+    bool ui_CheckRaphnetPluginMismatchPending = false;
+
     void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
 
     void initializeUI(bool launchROM);
@@ -136,6 +138,8 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     QString getWindowTitle(void);
 
     void showErrorMessage(QString text, QString details = "", bool force = true);
+
+    void checkRaphnetPluginMismatch(void);
 
     void updateUI(bool inEmulation, bool isPaused);
 

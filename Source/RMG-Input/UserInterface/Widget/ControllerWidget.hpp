@@ -205,6 +205,8 @@ signals:
 
     void UserProfileAdded(QString name, QString section);
     void UserProfileRemoved(QString name, QString section);
+
+    void RaphnetPluginSwitchRequested();
 };
 }
 }
