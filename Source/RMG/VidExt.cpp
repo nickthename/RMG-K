@@ -18,6 +18,7 @@
 
 #include <QVulkanInstance>
 #include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QApplication>
 #include <QThread>
 #include <QScreen>
@@ -39,6 +40,33 @@ static m64p_render_mode l_RenderMode;
 static QVulkanInstance l_VulkanInstance;
 static QVulkanInfoVector<QVulkanExtension> l_VulkanExtensions;
 static QVector<const char*> l_VulkanExtensionList;
+
+static void VidExt_UpdateOsdDisplaySize(void)
+{
+    if (l_RenderMode != M64P_RENDER_OPENGL || !l_OsdInitialized || l_OGLWidget == nullptr)
+    {
+        return;
+    }
+
+    QOpenGLContext* context = (*l_OGLWidget)->GetContext();
+    if (context == nullptr)
+    {
+        return;
+    }
+
+    QOpenGLFunctions* functions = context->functions();
+    if (functions == nullptr)
+    {
+        return;
+    }
+
+    GLint viewport[4] = {};
+    functions->glGetIntegerv(GL_VIEWPORT, viewport);
+    if (viewport[2] > 0 && viewport[3] > 0)
+    {
+        OnScreenDisplaySetDisplaySize(viewport[2], viewport[3]);
+    }
+}
 
 //
 // VidExt Functions
@@ -351,6 +379,7 @@ static m64p_error VidExt_GLSwapBuf(void)
         return M64ERR_UNSUPPORTED;
     }
 
+    VidExt_UpdateOsdDisplaySize();
     OnScreenDisplayRender();
 
     (*l_OGLWidget)->GetContext()->swapBuffers((*l_OGLWidget));
@@ -502,5 +531,4 @@ bool SetupVidExt(Thread::EmulationThread* emuThread, UserInterface::MainWindow* 
 
     return CoreSetupVidExt(vidext_funcs);
 }
-
 

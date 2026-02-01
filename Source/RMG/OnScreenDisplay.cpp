@@ -13,6 +13,7 @@
 
 #include <backends/imgui_impl_opengl3.h>
 #include <imgui.h>
+#include <cmath>
 #include <chrono>
 #include <deque>
 
@@ -47,6 +48,28 @@ static float       l_TextAlpha       = 1.0f;
 static int         l_MessageDuration = 6;
 static float       l_MessageScale    = 1.0f;
 static size_t      l_KailleraChatMaxMessages = 5;
+static bool        l_FontsDirty      = true;
+static const float l_BaseFontSize    = 13.0f;
+
+static void OnScreenDisplayUpdateFonts(void)
+{
+    if (!l_FontsDirty)
+    {
+        return;
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImFontConfig config;
+    config.SizePixels = l_BaseFontSize * l_MessageScale;
+
+    io.Fonts->Clear();
+    io.FontDefault = io.Fonts->AddFontDefault(&config);
+
+    ImGui_ImplOpenGL3_DestroyFontsTexture();
+    ImGui_ImplOpenGL3_CreateFontsTexture();
+
+    l_FontsDirty = false;
+}
 
 //
 // Exported Functions
@@ -68,6 +91,7 @@ bool OnScreenDisplayInit(void)
         return false;
     }
 
+    l_FontsDirty = true;
     l_Initialized = true;
     return true;
 }
@@ -95,10 +119,15 @@ void OnScreenDisplayLoadSettings(void)
     l_MessagePaddingX = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingX);
     l_MessagePaddingY = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingY);
     l_MessageDuration = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayDuration);
-    l_MessageScale    = CoreSettingsGetFloatValue(SettingsID::GUI_OnScreenDisplayScale);
-    if (l_MessageScale <= 0.1f)
+    float newMessageScale = CoreSettingsGetFloatValue(SettingsID::GUI_OnScreenDisplayScale);
+    if (newMessageScale <= 0.1f)
     {
-        l_MessageScale = 1.0f;
+        newMessageScale = 1.0f;
+    }
+    if (std::abs(newMessageScale - l_MessageScale) > 0.001f)
+    {
+        l_MessageScale = newMessageScale;
+        l_FontsDirty = true;
     }
     int maxChatMessages = CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages);
     if (maxChatMessages < 1)
@@ -203,6 +232,7 @@ void OnScreenDisplayRender(void)
         return;
     }
 
+    OnScreenDisplayUpdateFonts();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
     
@@ -235,7 +265,6 @@ void OnScreenDisplayRender(void)
         ImGui::PushStyleColor(ImGuiCol_Text,     ImVec4(l_TextRed, l_TextGreen, l_TextBlue, l_TextAlpha));
 
         ImGui::Begin("Message", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
-        ImGui::SetWindowFontScale(l_MessageScale);
         ImGui::Text("%s", l_Message.c_str());
         ImGui::End();
 
@@ -287,7 +316,6 @@ void OnScreenDisplayRender(void)
 
             const std::string windowName = "Kaillera Chat##" + std::to_string(messageIndex);
             ImGui::Begin(windowName.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
-            ImGui::SetWindowFontScale(l_MessageScale);
             ImGui::Text("%s", messageIter->message.c_str());
             const ImVec2 windowSize = ImGui::GetWindowSize();
             ImGui::End();
