@@ -127,6 +127,7 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
 #endif // NETPLAY
 
     bool ui_CheckRaphnetPluginMismatchPending = false;
+    bool ui_ShowFirstLaunchSetupPending = false;
 
     void closeEvent(QCloseEvent *) Q_DECL_OVERRIDE;
 
@@ -140,6 +141,10 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     void showErrorMessage(QString text, QString details = "", bool force = true);
 
     void checkRaphnetPluginMismatch(void);
+    bool shouldShowFirstLaunchSetup(void) const;
+    bool hasConfiguredInputProfiles(void) const;
+    bool isDefaultInputPlugin(void) const;
+    void showFirstLaunchSetupDialog(bool force, bool autoSelectRecommended);
 
     void updateUI(bool inEmulation, bool isPaused);
 
@@ -240,6 +245,7 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
 #endif
 
     void on_Action_Help_Github(void);
+    void on_Action_Help_FirstLaunchSetup(void);
     void on_Action_Help_About(void);
     void on_Action_Help_Update(void);
 

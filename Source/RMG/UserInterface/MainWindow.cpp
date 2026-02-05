@@ -10,6 +10,7 @@
 #include "MainWindow.hpp"
 
 #include "UserInterface/Dialog/AboutDialog.hpp"
+#include "UserInterface/Dialog/FirstLaunchDialog.hpp"
 #include "Dialog/Cheats/CheatsDialog.hpp"
 #include "Dialog/SettingsDialog.hpp"
 #include "Dialog/RomInfoDialog.hpp"
@@ -38,6 +39,8 @@
 #ifdef NETPLAY
 #include <QWebSocket>
 #endif // NETPLAY
+
+#include <cctype>
 #include <QCoreApplication>
 #include <QDesktopServices>
 #include <QGuiApplication>
@@ -52,6 +55,7 @@
 #include <QString>
 #include <QTimer>
 #include <QShowEvent>
+#include <QDialog>
 #include <QDir>
 #include <QUrl>
 #include <QRegularExpression>
@@ -74,6 +78,98 @@
 #include <RMG-Core/SaveState.hpp>
 #include <RMG-Core/Settings.hpp>
 #include <RMG-Core/Plugins.hpp>
+
+namespace
+{
+using InputPluginType = UserInterface::Dialog::FirstLaunchDialog::InputPluginType;
+
+bool has_non_whitespace(const std::string& value)
+{
+    for (char ch : value)
+    {
+        if (!std::isspace(static_cast<unsigned char>(ch)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool has_non_empty_entries(const std::vector<std::string>& values)
+{
+    for (const auto& value : values)
+    {
+        if (has_non_whitespace(value))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::string to_lower_copy(const std::string& value)
+{
+    std::string lowered = value;
+    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return lowered;
+}
+
+bool is_none_device_name(const std::string& value)
+{
+    if (!has_non_whitespace(value))
+    {
+        return true;
+    }
+
+    return to_lower_copy(value) == "none";
+}
+
+InputPluginType plugin_type_from_filename(const std::string& value)
+{
+    std::string lowered = to_lower_copy(value);
+    if (lowered.find("raphnetraw") != std::string::npos)
+    {
+        return InputPluginType::Raphnet;
+    }
+
+    if (lowered.find("rmg-input-gca") != std::string::npos || lowered.find("gca") != std::string::npos)
+    {
+        return InputPluginType::Gamecube;
+    }
+
+    return InputPluginType::USB;
+}
+
+std::string plugin_filename_from_type(InputPluginType type)
+{
+#ifdef _WIN32
+    switch (type)
+    {
+    case InputPluginType::Gamecube:
+        return "RMG-Input-GCA.dll";
+    case InputPluginType::Raphnet:
+        return "mupen64plus-input-raphnetraw.dll";
+    case InputPluginType::USB:
+    default:
+        return "RMG-Input.dll";
+    }
+#else
+    switch (type)
+    {
+    case InputPluginType::Gamecube:
+        return "RMG-Input-GCA.so";
+    case InputPluginType::Raphnet:
+        return "mupen64plus-input-raphnetraw.so";
+    case InputPluginType::USB:
+    default:
+        return "RMG-Input.so";
+    }
+#endif
+}
+} // namespace
 #include <RMG-Core/Netplay.hpp>
 #include <RMG-Core/Kaillera.hpp>
 #include <RMG-Core/Version.hpp>
@@ -166,7 +262,8 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
 #endif // NETPLAY
 
     // Check for raphnet plugin mismatch after window is visible
-    this->ui_CheckRaphnetPluginMismatchPending = showUI && !launchROM;
+    this->ui_ShowFirstLaunchSetupPending = showUI && !launchROM && this->shouldShowFirstLaunchSetup();
+    this->ui_CheckRaphnetPluginMismatchPending = showUI && !launchROM && !this->ui_ShowFirstLaunchSetupPending;
 
     return true;
 }
@@ -272,6 +369,14 @@ void MainWindow::showEvent(QShowEvent *event)
         });
     }
 #endif // NETPLAY
+
+    if (this->ui_ShowFirstLaunchSetupPending)
+    {
+        this->ui_ShowFirstLaunchSetupPending = false;
+        QTimer::singleShot(0, this, [this]() {
+            this->showFirstLaunchSetupDialog(false, true);
+        });
+    }
 
     // Check for raphnet plugin mismatch after the window is visible
     if (this->ui_CheckRaphnetPluginMismatchPending)
@@ -680,6 +785,166 @@ void MainWindow::checkRaphnetPluginMismatch(void)
         // User declined, don't ask again
         CoreSettingsSetValue(SettingsID::GUI_DontAskRaphnetPluginSwitch, true);
         CoreSettingsSave();
+    }
+}
+
+bool MainWindow::isDefaultInputPlugin(void) const
+{
+    std::string inputPlugin = CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin);
+
+    if (inputPlugin.find("RMG-Input") == std::string::npos)
+    {
+        return false;
+    }
+
+    if (inputPlugin.find("raphnetraw") != std::string::npos ||
+        inputPlugin.find("GCA") != std::string::npos)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool MainWindow::hasConfiguredInputProfiles(void) const
+{
+    const std::string profileBase = "Rosalie's Mupen GUI - Input Plugin Profile ";
+
+    for (int i = 0; i < 4; i++)
+    {
+        std::string section = profileBase + std::to_string(i);
+        if (!CoreSettingsSectionExists(section))
+        {
+            continue;
+        }
+
+        if (CoreSettingsGetBoolValue(SettingsID::Input_PluggedIn, section))
+        {
+            return true;
+        }
+
+        std::string deviceName = CoreSettingsGetStringValue(SettingsID::Input_DeviceName, section);
+        if (!is_none_device_name(deviceName))
+        {
+            return true;
+        }
+
+        if (has_non_empty_entries(CoreSettingsGetStringListValue(SettingsID::Input_A_Name, section)) ||
+            has_non_empty_entries(CoreSettingsGetStringListValue(SettingsID::Input_Start_Name, section)) ||
+            has_non_empty_entries(CoreSettingsGetStringListValue(SettingsID::Input_AnalogStickUp_Name, section)))
+        {
+            return true;
+        }
+    }
+
+    if (has_non_empty_entries(CoreSettingsGetStringListValue(SettingsID::Input_Profiles)))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool MainWindow::shouldShowFirstLaunchSetup(void) const
+{
+    if (!this->isDefaultInputPlugin())
+    {
+        return false;
+    }
+
+    if (this->hasConfiguredInputProfiles())
+    {
+        return false;
+    }
+
+    std::string romDirectory = CoreSettingsGetStringValue(SettingsID::RomBrowser_Directory);
+    if (!romDirectory.empty())
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void MainWindow::showFirstLaunchSetupDialog(bool force, bool autoSelectRecommended)
+{
+    if (!force && !this->shouldShowFirstLaunchSetup())
+    {
+        return;
+    }
+
+    InputPluginType currentPlugin = plugin_type_from_filename(
+        CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin));
+
+    Dialog::FirstLaunchDialog dialog(this, currentPlugin, autoSelectRecommended);
+
+    QString romDirectory = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::RomBrowser_Directory));
+    if (!romDirectory.isEmpty())
+    {
+        dialog.SetRomDirectory(QDir::toNativeSeparators(romDirectory));
+    }
+
+    auto applyInputPlugin = [this](InputPluginType plugin)
+    {
+        std::string pluginFile = plugin_filename_from_type(plugin);
+        std::string currentFile = CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin);
+
+        if (pluginFile.empty() || currentFile == pluginFile)
+        {
+            return;
+        }
+
+        CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, pluginFile);
+        CoreSettingsSave();
+
+        if (!CoreApplyPluginSettings())
+        {
+            this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
+            return;
+        }
+
+        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
+        this->action_Settings_Input->setEnabled(hasInputConfig);
+        this->action_Toolbar_Input->setEnabled(hasInputConfig);
+    };
+
+    connect(&dialog, &Dialog::FirstLaunchDialog::InputPluginSelected, this,
+        [applyInputPlugin](InputPluginType plugin)
+    {
+        applyInputPlugin(plugin);
+    });
+
+    connect(&dialog, &Dialog::FirstLaunchDialog::RomDirectorySelected, this,
+        [this](const QString& directory)
+    {
+        if (directory.isEmpty())
+        {
+            return;
+        }
+
+        CoreSettingsSetValue(SettingsID::RomBrowser_Directory, directory.toStdString());
+        CoreSettingsSave();
+
+        if (this->ui_Widget_RomBrowser != nullptr)
+        {
+            this->ui_Widget_RomBrowser->RefreshRomList();
+        }
+    });
+
+    const int result = dialog.exec();
+    if (result != QDialog::Accepted)
+    {
+        return;
+    }
+
+    InputPluginType selectedPlugin = dialog.GetSelectedPlugin();
+    applyInputPlugin(selectedPlugin);
+    if (selectedPlugin == InputPluginType::Gamecube || selectedPlugin == InputPluginType::USB)
+    {
+        if (CorePluginsHasConfig(CorePluginType::Input))
+        {
+            CorePluginsOpenConfig(CorePluginType::Input, this);
+        }
     }
 }
 
@@ -1279,7 +1544,8 @@ void MainWindow::configureActions(void)
         this->action_View_Fullscreen, this->action_View_RefreshRoms,
         this->action_View_Log,
         // Help actions
-        this->action_Help_Github, this->action_Help_About,
+        this->action_Help_Github, this->action_Help_FirstLaunchSetup,
+        this->action_Help_About,
     });
 
     // configure save slot actions
@@ -1420,6 +1686,7 @@ void MainWindow::connectActionSignals(void)
     connect(this->action_Netplay_BrowseSessions, &QAction::triggered, this, &MainWindow::on_Action_Netplay_BrowseSessions);
 
     connect(this->action_Help_Github, &QAction::triggered, this, &MainWindow::on_Action_Help_Github);
+    connect(this->action_Help_FirstLaunchSetup, &QAction::triggered, this, &MainWindow::on_Action_Help_FirstLaunchSetup);
     connect(this->action_Help_About, &QAction::triggered, this, &MainWindow::on_Action_Help_About);
     connect(this->action_Help_Update, &QAction::triggered, this, &MainWindow::on_Action_Help_Update);
 
@@ -2564,6 +2831,11 @@ QString MainWindow::findRomByName(QString gameName)
 void MainWindow::on_Action_Help_Github(void)
 {
     QDesktopServices::openUrl(QUrl("https://github.com/Jay-Day/RMG-K"));
+}
+
+void MainWindow::on_Action_Help_FirstLaunchSetup(void)
+{
+    this->showFirstLaunchSetupDialog(true, false);
 }
 
 void MainWindow::on_Action_Help_About(void)

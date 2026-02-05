@@ -59,6 +59,8 @@ set(RMG_SOURCES
     UserInterface/Dialog/Cheats/AddCheatDialog.ui
     UserInterface/Dialog/Cheats/ChooseCheatOptionDialog.cpp
     UserInterface/Dialog/Cheats/ChooseCheatOptionDialog.ui
+    UserInterface/Dialog/FirstLaunchDialog.cpp
+    UserInterface/Dialog/FirstLaunchDialog.ui
     UserInterface/Dialog/RomInfoDialog.cpp
     UserInterface/Dialog/RomInfoDialog.ui
     UserInterface/Dialog/AboutDialog.cpp
@@ -143,6 +145,7 @@ target_include_directories(RMG PRIVATE
 )
 
 target_link_libraries(RMG Qt6::Gui Qt6::Widgets)
+target_link_libraries(RMG SDL3::SDL3)
 
 if (NOT WIN32)
     target_link_libraries(RMG Qt6::DBus)
@@ -159,4 +162,3 @@ endif(KCA_DRAG_DROP)
 if (NETPLAY)
     target_link_libraries(RMG Qt6::WebSockets)
 endif(NETPLAY)
-

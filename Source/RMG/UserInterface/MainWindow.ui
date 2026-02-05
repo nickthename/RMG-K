@@ -143,11 +143,13 @@
     <property name="title">
      <string>He&amp;lp</string>
     </property>
-    <addaction name="action_Help_Github"/>
+   <addaction name="action_Help_Github"/>
+   <addaction name="separator"/>
+   <addaction name="action_Help_Update"/>
     <addaction name="separator"/>
-    <addaction name="action_Help_Update"/>
+    <addaction name="action_Help_FirstLaunchSetup"/>
     <addaction name="separator"/>
-    <addaction name="action_Help_About"/>
+   <addaction name="action_Help_About"/>
    </widget>
    <widget class="QMenu" name="menuNetplay">
     <property name="title">
@@ -470,6 +472,14 @@
    </property>
    <property name="text">
     <string>&amp;Github Repository</string>
+   </property>
+  </action>
+  <action name="action_Help_FirstLaunchSetup">
+   <property name="icon">
+    <iconset theme="magic-line"/>
+   </property>
+   <property name="text">
+    <string>Input &amp; ROM Setup...</string>
    </property>
   </action>
   <action name="action_Help_About">
