@@ -13,6 +13,7 @@
 #ifdef NETPLAY
 
 #include "../../KailleraUIBridge.hpp"
+#include "../../KailleraProtocolText.hpp"
 
 #include <RMG-Core/Emulation.hpp>
 #include <RMG-Core/Kaillera.hpp>
@@ -75,7 +76,7 @@ static bool localGameListContains(const QString& gameName)
     const char* p = infos.gameList;
     while (*p)
     {
-        if (gameName == QString::fromUtf8(p))
+        if (gameName == KailleraProtocolStringFromBytes(p))
         {
             return true;
         }
@@ -1244,7 +1245,7 @@ void KailleraP2PDialog::ssrvWhatIsMyIp()
 QString KailleraP2PDialog::buildEnlistAppName()
 {
     extern char APP[128];
-    QString app = QString::fromUtf8(APP);
+    QString app = KailleraProtocolStringFromBytes(APP);
 
     // Append traversal code if hosting by code
     if (m_isHost && m_travHostEnabled && !m_travCode.isEmpty())
@@ -1262,15 +1263,24 @@ void KailleraP2PDialog::enlistGame()
     // Use ENLISP (with port) when hosting by code or on non-default port
     if (m_travHostEnabled || port != 27886)
     {
-        QByteArray msg = QString("ENLISP %1|%2|%3|%4")
-            .arg(m_gameName, app, m_username)
-            .arg(port).toUtf8();
+        QByteArray msg = "ENLISP ";
+        msg += KailleraProtocolStringToBytes(m_gameName, 127);
+        msg += '|';
+        msg += KailleraProtocolStringToBytes(app, 127);
+        msg += '|';
+        msg += KailleraProtocolStringToBytes(m_username, 31);
+        msg += '|';
+        msg += QByteArray::number(port);
         ssrvSend(msg);
     }
     else
     {
-        QByteArray msg = QString("ENLIST %1|%2|%3")
-            .arg(m_gameName, app, m_username).toUtf8();
+        QByteArray msg = "ENLIST ";
+        msg += KailleraProtocolStringToBytes(m_gameName, 127);
+        msg += '|';
+        msg += KailleraProtocolStringToBytes(app, 127);
+        msg += '|';
+        msg += KailleraProtocolStringToBytes(m_username, 31);
         ssrvSend(msg);
     }
 }
@@ -1772,8 +1782,8 @@ void KailleraP2PDialog::onSendChat()
     QString text = m_chatInput->text().trimmed();
     if (text.isEmpty()) return;
 
-    QByteArray utf8 = text.toUtf8();
-    p2p_send_chat(utf8.data());
+    QByteArray message = KailleraProtocolStringToBytes(text, 250);
+    p2p_send_chat(message.data());
     m_chatInput->clear();
 }
 

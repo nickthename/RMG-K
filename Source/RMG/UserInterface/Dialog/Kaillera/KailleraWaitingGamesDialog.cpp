@@ -9,6 +9,7 @@
  */
 #include "KailleraWaitingGamesDialog.hpp"
 #include "KailleraTableStyle.hpp"
+#include "../../KailleraProtocolText.hpp"
 
 #ifdef NETPLAY
 
@@ -243,9 +244,9 @@ void KailleraWaitingGamesDialog::parseResponse(const QByteArray& data)
         QList<QByteArray> fields = line.split('|');
         if (fields.size() < 4) continue;
 
-        QString gameName = QString::fromUtf8(fields[0].trimmed());
-        QString emulator = QString::fromUtf8(fields[1].trimmed());
-        QString userName = QString::fromUtf8(fields[2].trimmed());
+        QString gameName = KailleraProtocolStringFromBytes(fields[0].trimmed());
+        QString emulator = KailleraProtocolStringFromBytes(fields[1].trimmed());
+        QString userName = KailleraProtocolStringFromBytes(fields[2].trimmed());
         QString hostPort = QString::fromUtf8(fields[3].trimmed());
 
         // Extract traversal code from emulator string

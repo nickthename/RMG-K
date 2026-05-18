@@ -16,6 +16,7 @@
 #ifdef NETPLAY
 
 #include "../../KailleraUIBridge.hpp"
+#include "../../KailleraProtocolText.hpp"
 
 #include <RMG-Core/Settings.hpp>
 #include <RMG-Core/Kaillera.hpp>
@@ -344,7 +345,7 @@ static bool localKailleraGameListContains(const QString& gameName)
     const char* p = infos.gameList;
     while (*p)
     {
-        if (gameName == QString::fromUtf8(p))
+        if (gameName == KailleraProtocolStringFromBytes(p))
         {
             return true;
         }
@@ -1903,7 +1904,7 @@ QWidget* KailleraNetplayDialog::createP2PTab()
         const char* p = infos.gameList;
         while (*p)
         {
-            gameNames.append(QString::fromUtf8(p));
+            gameNames.append(KailleraProtocolStringFromBytes(p));
             p += strlen(p) + 1;
         }
     }
@@ -3936,17 +3937,24 @@ void KailleraNetplayDialog::onWaitingGamesReply(QNetworkReply* reply)
 
     // Parse: pipe-delimited fields, 7 per entry
     // GameName|IP:Port|Username|EmuName|WaitingPlayers|ServerName|ServerLocation|...
-    QStringList fields = QString::fromUtf8(data).split('|', Qt::SkipEmptyParts);
+    QList<QByteArray> fields;
+    for (const QByteArray& field : data.split('|'))
+    {
+        if (!field.trimmed().isEmpty())
+        {
+            fields.append(field.trimmed());
+        }
+    }
 
     int total = 0;
     wgTable->setSortingEnabled(false);
-    for (int i = 0; i + 6 < fields.size(); i += 7)
+    for (qsizetype i = 0; i + 6 < fields.size(); i += 7)
     {
-        QString gameName = fields[i].trimmed();
-        QString hostPort = fields[i + 1].trimmed();
-        QString username = fields[i + 2].trimmed();
-        QString emulator = fields[i + 3].trimmed();
-        QString serverName = fields[i + 5].trimmed();
+        QString gameName = KailleraProtocolStringFromBytes(fields[i]);
+        QString hostPort = QString::fromUtf8(fields[i + 1]);
+        QString username = KailleraProtocolStringFromBytes(fields[i + 2]);
+        QString emulator = KailleraProtocolStringFromBytes(fields[i + 3]);
+        QString serverName = KailleraProtocolStringFromBytes(fields[i + 5]);
 
         if (isPrivateHostPort(hostPort)) continue;
 
@@ -4084,8 +4092,10 @@ void KailleraNetplayDialog::onConnectServer()
     }
 
     // Get username
-    QByteArray usernameBytes = m_usernameEdit->text().toUtf8();
+    QString username = m_usernameEdit->text().trimmed();
+    QByteArray usernameBytes = KailleraProtocolStringToBytes(username, 31);
     if (usernameBytes.isEmpty()) usernameBytes = "Player";
+    if (username.isEmpty()) username = "Player";
 
     // Initialize kaillera core for server mode
     if (kaillera_core_initialize(0, APP, usernameBytes.data(), 1))
@@ -4193,7 +4203,7 @@ void KailleraNetplayDialog::onConnectServer()
         }
         else
         {
-            QString errorMsg = QString::fromUtf8(kaillera_core_get_last_error());
+            QString errorMsg = KailleraProtocolStringFromBytes(kaillera_core_get_last_error());
             kaillera_core_cleanup();
             if (errorMsg.isEmpty())
             {
@@ -4237,8 +4247,10 @@ void KailleraNetplayDialog::onP2PHost()
         return;
     }
 
-    QByteArray usernameBytes = m_usernameEdit->text().toUtf8();
+    QString username = m_usernameEdit->text().trimmed();
+    QByteArray usernameBytes = KailleraProtocolStringToBytes(username, 31);
     if (usernameBytes.isEmpty()) usernameBytes = "Player";
+    if (username.isEmpty()) username = "Player";
 
     // Use selected game from the host picker
     QString gameName = (m_p2pGameCombo != nullptr) ? m_p2pGameCombo->currentText().trimmed() : QString();
@@ -4247,7 +4259,7 @@ void KailleraNetplayDialog::onP2PHost()
         QMessageBox::warning(this, "P2P Host", "No game selected. Choose a ROM to host.");
         return;
     }
-    QByteArray gameBytes = gameName.toUtf8();
+    QByteArray gameBytes = KailleraProtocolStringToBytes(gameName, 127);
 
     int port = CoreSettingsGetIntValue(SettingsID::Kaillera_Port);
     if (port <= 0 || port > 65535) port = 27886;
@@ -4264,7 +4276,6 @@ void KailleraNetplayDialog::onP2PHost()
         hide();
 
         bool rollbackLaunched = false;
-        QString username = QString::fromUtf8(usernameBytes);
         KailleraP2PDialog p2pDialog(true, gameName, username, QString(), nullptr);
         connectRollbackSessionLaunch(p2pDialog, rollbackLaunched);
         p2pDialog.show();
@@ -4407,8 +4418,10 @@ void KailleraNetplayDialog::onP2PJoin()
         return;
     }
 
-    QByteArray usernameBytes = m_usernameEdit->text().toUtf8();
+    QString username = m_usernameEdit->text().trimmed();
+    QByteArray usernameBytes = KailleraProtocolStringToBytes(username, 31);
     if (usernameBytes.isEmpty()) usernameBytes = "Player";
+    if (username.isEmpty()) username = "Player";
 
     bool isCode = looksLikeTraversalCode(addrText);
     const QString normalizedCode = isCode ? normalizeTraversalCode(addrText) : QString();
@@ -4427,7 +4440,6 @@ void KailleraNetplayDialog::onP2PJoin()
             // Join by traversal code — the dialog handles connecting via NAT traversal
             hide();
 
-            QString username = QString::fromUtf8(usernameBytes);
             KailleraP2PDialog p2pDialog(false, QString(), username, normalizedCode, nullptr);
             connect(&p2pDialog, &KailleraP2PDialog::peerNicknameResolved, this,
                     [this, normalizedCode](const QString& nickname) {
@@ -4476,7 +4488,6 @@ void KailleraNetplayDialog::onP2PJoin()
             {
                 hide();
 
-                QString username = QString::fromUtf8(usernameBytes);
                 KailleraP2PDialog p2pDialog(false, QString(), username, QString(), nullptr);
                 connect(&p2pDialog, &KailleraP2PDialog::peerNicknameResolved, this,
                         [this, addrText](const QString& nickname) {
@@ -4999,9 +5010,9 @@ void KailleraNetplayDialog::populateP2PWaitingGames(const QByteArray& data)
 
         for (qsizetype fieldIndex = 0; fieldIndex + 3 < fields.size(); fieldIndex += 4)
         {
-            const QString gameName = QString::fromUtf8(fields[fieldIndex].trimmed());
-            QString emulator = QString::fromUtf8(fields[fieldIndex + 1].trimmed());
-            const QString userName = QString::fromUtf8(fields[fieldIndex + 2].trimmed());
+            const QString gameName = KailleraProtocolStringFromBytes(fields[fieldIndex].trimmed());
+            QString emulator = KailleraProtocolStringFromBytes(fields[fieldIndex + 1].trimmed());
+            const QString userName = KailleraProtocolStringFromBytes(fields[fieldIndex + 2].trimmed());
             const QString hostPort = QString::fromUtf8(fields[fieldIndex + 3].trimmed());
 
             QString code;
@@ -5012,7 +5023,7 @@ void KailleraNetplayDialog::populateP2PWaitingGames(const QByteArray& data)
             }
 
             const bool gameAvailable = localKailleraGameListContains(gameName);
-            const QString localEmulator = QString::fromUtf8(APP).trimmed();
+            const QString localEmulator = KailleraProtocolStringFromBytes(APP).trimmed();
             const bool emulatorMismatch = emulator.trimmed() != localEmulator;
 
             const QString normalizedCode = normalizeTraversalCode(code);

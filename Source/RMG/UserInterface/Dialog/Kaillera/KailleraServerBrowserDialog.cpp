@@ -14,6 +14,7 @@
 #ifdef NETPLAY
 
 #include "../../KailleraUIBridge.hpp"
+#include "../../KailleraProtocolText.hpp"
 #include "KailleraOptionsDialog.hpp"
 
 #include <RMG-Core/Kaillera.hpp>
@@ -1818,7 +1819,7 @@ void KailleraServerBrowserDialog::requestCreateGame(const QString& gameName)
 
     m_currentGameName = gameName;
     m_currentGameId = 0;
-    QByteArray nameBytes = gameName.toUtf8();
+    QByteArray nameBytes = KailleraProtocolStringToBytes(gameName, 127);
     kaillera_create_game(nameBytes.data());
 }
 
@@ -1852,7 +1853,7 @@ void KailleraServerBrowserDialog::populateGameSubmenus(QMenu* parentMenu)
     const char* p = infos.gameList;
     while (*p)
     {
-        gameNames.push_back(QString::fromUtf8(p));
+        gameNames.push_back(KailleraProtocolStringFromBytes(p));
         p += strlen(p) + 1;
     }
 
@@ -2254,7 +2255,7 @@ bool KailleraServerBrowserDialog::tryJoinGameFromTable(QTableWidget* table, int 
         const char* p = infos.gameList;
         while (*p)
         {
-            if (gameName == QString::fromUtf8(p))
+            if (gameName == KailleraProtocolStringFromBytes(p))
             {
                 found = true;
                 break;
@@ -2273,7 +2274,7 @@ bool KailleraServerBrowserDialog::tryJoinGameFromTable(QTableWidget* table, int 
     if (emuItem)
     {
         const QString remoteEmu = emuItem->text();
-        const QString localEmu = QString::fromUtf8(APP);
+        const QString localEmu = KailleraProtocolStringFromBytes(APP);
         if (remoteEmu != localEmu)
         {
             int ret = QMessageBox::warning(this, "Version Mismatch",
@@ -2301,7 +2302,7 @@ bool KailleraServerBrowserDialog::tryJoinGameFromTable(QTableWidget* table, int 
 
     m_currentGameName = gameName;
     m_currentGameId = gameId;
-    QByteArray gameBytes = gameName.toUtf8();
+    QByteArray gameBytes = KailleraProtocolStringToBytes(gameName, 127);
     kaillera_join_game(gameId, gameBytes.constData());
     return true;
 }
@@ -2645,7 +2646,7 @@ void KailleraServerBrowserDialog::onUserGameJoined()
         CoreSettingsGetStringValue(SettingsID::Kaillera_JoinMessageJoin)).trimmed();
     if (!joinMsg.isEmpty())
     {
-        QByteArray msgBytes = joinMsg.toUtf8();
+        QByteArray msgBytes = KailleraProtocolStringToBytes(joinMsg, 127);
         kaillera_game_chat_send(msgBytes.data());
     }
 }
@@ -2723,7 +2724,7 @@ void KailleraServerBrowserDialog::onPlayerJoined(QString name, int ping, unsigne
             CoreSettingsGetStringValue(SettingsID::Kaillera_JoinMessageHost)).trimmed();
         if (!joinMsg.isEmpty())
         {
-            QByteArray msgBytes = joinMsg.toUtf8();
+            QByteArray msgBytes = KailleraProtocolStringToBytes(joinMsg, 127);
             kaillera_game_chat_send(msgBytes.data());
         }
     }
@@ -2767,7 +2768,7 @@ void KailleraServerBrowserDialog::onPlayerLeft(QString name, unsigned short id)
         QTimer::singleShot(0, this, [this, pendingGameName, pendingGameId]() {
             m_currentGameName = pendingGameName;
             m_currentGameId = pendingGameId;
-            QByteArray gameBytes = pendingGameName.toUtf8();
+            QByteArray gameBytes = KailleraProtocolStringToBytes(pendingGameName, 127);
             kaillera_join_game(pendingGameId, gameBytes.constData());
         });
     }
@@ -2826,7 +2827,8 @@ void KailleraServerBrowserDialog::onGameStarted(QString game, int player, int nu
         QListWidgetItem* playerItem = m_playerList->item(i);
         if (playerItem != nullptr)
         {
-            QByteArray nameBytes = playerItem->data(PlayerNameRole).toString().toUtf8();
+            const QString name = playerItem->data(PlayerNameRole).toString();
+            QByteArray nameBytes = KailleraProtocolStringToBytes(name, 31);
             strncpy(recording_player_names[i], nameBytes.constData(), 31);
             recording_player_names[i][31] = '\0';
         }
@@ -2835,7 +2837,10 @@ void KailleraServerBrowserDialog::onGameStarted(QString game, int player, int nu
     std::array<std::string, 4> playerNames;
     for (size_t i = 0; i < playerNames.size(); ++i)
     {
-        playerNames[i] = recording_player_names[i];
+        QString name = (i < static_cast<size_t>(m_playerList->count()) && m_playerList->item(static_cast<int>(i)) != nullptr)
+            ? m_playerList->item(static_cast<int>(i))->data(PlayerNameRole).toString()
+            : QString();
+        playerNames[i] = name.toUtf8().constData();
     }
     OnScreenDisplaySetKailleraPortLabels(numPlayers, playerNames);
 }
@@ -2898,7 +2903,8 @@ void KailleraServerBrowserDialog::onUserListContextMenu(const QPoint& pos)
     }
     else if (chosen == findUser)
     {
-        QByteArray cmd = QString("/finduser %1").arg(username).toUtf8();
+        QByteArray cmd = "/finduser ";
+        cmd += KailleraProtocolStringToBytes(username, 31);
         kaillera_chat_send(cmd.data());
     }
     else if (chosen == ignoreUser)
@@ -3124,7 +3130,7 @@ void KailleraServerBrowserDialog::onAdvertise()
         ad = QString("<%1> | %2 - %3 player(s)").arg(hostName, m_currentGameName).arg(playerCount);
     }
 
-    QByteArray adBytes = ad.toUtf8();
+    QByteArray adBytes = KailleraProtocolStringToBytes(ad, 127);
     kaillera_chat_send(adBytes.data());
 }
 
@@ -3179,7 +3185,7 @@ void KailleraServerBrowserDialog::onSendLobbyChat()
         }
     }
 
-    QByteArray textBytes = text.toUtf8();
+    QByteArray textBytes = KailleraProtocolStringToBytes(text);
     kaillera_chat_send(textBytes.data());
     m_lobbyChatInput->clear();
 }
@@ -3199,15 +3205,12 @@ void KailleraServerBrowserDialog::onSendGameChat()
         return;
     }
 
-    // Split long messages at 127 chars (Kaillera protocol limit)
-    QByteArray textBytes = text.toUtf8();
-    while (textBytes.size() > 0)
+    // Split long messages at 127 bytes (Kaillera protocol limit).
+    const QList<QByteArray> chunks = KailleraProtocolStringToChunks(text, 127);
+    for (QByteArray chunk : chunks)
     {
-        int len = qMin(textBytes.size(), 127);
-        QByteArray chunk = textBytes.left(len);
         chunk.append('\0');
         kaillera_game_chat_send(chunk.data());
-        textBytes = textBytes.mid(len);
     }
     m_gameChatInput->clear();
 }

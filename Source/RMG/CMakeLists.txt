@@ -106,6 +106,7 @@ if (NETPLAY)
     list(APPEND RMG_SOURCES
         UserInterface/KailleraSessionManager.cpp
         UserInterface/KailleraUIBridge.cpp
+        UserInterface/KailleraProtocolText.cpp
         UserInterface/Dialog/Kaillera/KailleraNetplayDialog.cpp
         UserInterface/Dialog/Kaillera/KailleraPlaybackDialog.cpp
         UserInterface/Dialog/Kaillera/KailleraServerBrowserDialog.cpp

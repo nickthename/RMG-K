@@ -9,6 +9,7 @@
  */
 #include "KailleraSessionManager.hpp"
 #include "KailleraUIBridge.hpp"
+#include "KailleraProtocolText.hpp"
 #ifdef NETPLAY
 #include "Dialog/Kaillera/KailleraNetplayDialog.hpp"
 #endif
@@ -41,7 +42,9 @@ KailleraSessionManager::KailleraSessionManager(QWidget* parent)
         [this](std::string game, int player, int numPlayers) {
             QMetaObject::invokeMethod(this,
                 [this, game, player, numPlayers]() {
-                    this->handleGameStart(QString::fromStdString(game), player, numPlayers);
+                    this->handleGameStart(KailleraProtocolStringFromBytes(
+                                              QByteArray(game.data(), static_cast<int>(game.size()))),
+                                          player, numPlayers);
                 },
                 Qt::QueuedConnection);
         },
@@ -49,8 +52,10 @@ KailleraSessionManager::KailleraSessionManager(QWidget* parent)
         [this](std::string nick, std::string text) {
             QMetaObject::invokeMethod(this,
                 [this, nick, text]() {
-                    this->handleChatReceived(QString::fromStdString(nick),
-                                            QString::fromStdString(text));
+                    this->handleChatReceived(KailleraProtocolStringFromBytes(
+                                                 QByteArray(nick.data(), static_cast<int>(nick.size()))),
+                                             KailleraProtocolStringFromBytes(
+                                                 QByteArray(text.data(), static_cast<int>(text.size()))));
                 },
                 Qt::QueuedConnection);
         },
@@ -58,7 +63,9 @@ KailleraSessionManager::KailleraSessionManager(QWidget* parent)
         [this](std::string nick, int playerNum) {
             QMetaObject::invokeMethod(this,
                 [this, nick, playerNum]() {
-                    this->handlePlayerDropped(QString::fromStdString(nick), playerNum);
+                    this->handlePlayerDropped(KailleraProtocolStringFromBytes(
+                                                  QByteArray(nick.data(), static_cast<int>(nick.size()))),
+                                              playerNum);
                 },
                 Qt::QueuedConnection);
         },
@@ -133,7 +140,9 @@ void KailleraSessionManager::sendChatMessage(QString message)
         return;
     }
 
-    CoreKailleraSendChat(message.toStdString());
+    QByteArray messageBytes = KailleraProtocolStringToBytes(message);
+    CoreKailleraSendChat(std::string(messageBytes.constData(),
+                                     static_cast<size_t>(messageBytes.size())));
 }
 
 void KailleraSessionManager::endGame()

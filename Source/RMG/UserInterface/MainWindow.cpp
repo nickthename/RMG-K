@@ -23,6 +23,7 @@
 #include "Dialog/Netplay/CreateNetplaySessionDialog.hpp"
 #include "Dialog/Netplay/NetplaySessionDialog.hpp"
 #include "KailleraUIBridge.hpp"
+#include "KailleraProtocolText.hpp"
 #include "Dialog/Kaillera/KailleraPlaybackDialog.hpp"
 #include "n02_client.h"
 #include "kailleraclient.h"
@@ -1524,7 +1525,7 @@ std::array<std::string, 4> GetLiveKailleraPortLabelNames()
     std::array<std::string, 4> playerNames;
     for (size_t i = 0; i < playerNames.size(); ++i)
     {
-        playerNames[i] = recording_player_names[i];
+        playerNames[i] = KailleraProtocolStringFromBytes(recording_player_names[i]).toUtf8().constData();
     }
     return playerNames;
 }

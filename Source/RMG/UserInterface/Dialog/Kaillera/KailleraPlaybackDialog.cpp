@@ -9,6 +9,7 @@
  */
 #include "KailleraPlaybackDialog.hpp"
 #include "KailleraTableStyle.hpp"
+#include "../../KailleraProtocolText.hpp"
 #include "UserInterface/MainWindow.hpp"
 #ifdef _WIN32
 #include "Utilities/KailleraExport/FfmpegEncoder.hpp"
@@ -831,7 +832,7 @@ void KailleraPlaybackDialog::populatePlaybackList()
                     memcpy(name, filebuf + 272 + p * 32, 32);
                     name[32] = 0;
                     if (name[0] != 0)
-                        names.append(QString::fromUtf8(name));
+                        names.append(KailleraProtocolStringFromBytes(name));
                 }
                 playersStr = names.isEmpty() ? "?" : names.join(", ");
             }
@@ -937,7 +938,7 @@ void KailleraPlaybackDialog::populatePlaybackList()
         m_playbackTable->insertRow(row);
         m_playbackTable->setItem(row, 0, new QTableWidgetItem(dateStr));
         m_playbackTable->setItem(row, 1, new QTableWidgetItem(playersStr));
-        m_playbackTable->setItem(row, 2, new QTableWidgetItem(QString::fromUtf8(gameName)));
+        m_playbackTable->setItem(row, 2, new QTableWidgetItem(KailleraProtocolStringFromBytes(gameName)));
         m_playbackTable->setItem(row, 3, new QTableWidgetItem(durationStr));
         m_playbackTable->setItem(row, 4, new QTableWidgetItem(sizeStr));
         m_playbackTable->setItem(row, 5, new QTableWidgetItem(fi.fileName()));
@@ -1005,7 +1006,8 @@ QString KailleraPlaybackDialog::getSelectedRecordingGameName(QString* recordingP
         *totalFrames = krecData.totalInputFrames;
     }
 
-    return QString::fromStdString(krecData.header.gameName);
+    return KailleraProtocolStringFromBytes(
+        QByteArray(krecData.header.gameName.data(), static_cast<int>(krecData.header.gameName.size())));
 #endif
 }
 

@@ -11,13 +11,14 @@
 
 #ifdef NETPLAY
 
+#include "KailleraProtocolText.hpp"
 #include "n02_client.h"
 #include "common/k_socket.h"  // for sockaddr_in
 
 // Helper: safely convert char* to QString (handles nullptr)
 static inline QString safeStr(const char* s)
 {
-    return QString::fromUtf8(s ? s : "");
+    return KailleraProtocolStringFromBytes(s);
 }
 
 KailleraUIBridge::KailleraUIBridge()
