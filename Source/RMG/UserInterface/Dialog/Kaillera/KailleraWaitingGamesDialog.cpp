@@ -106,7 +106,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
     : QDialog(parent)
 {
     setWindowIcon(QIcon(":Resource/Kaillera.svg"));
-    setWindowTitle("waiting games...");
+    setWindowTitle(tr("Waiting Games"));
     setMinimumSize(640, 400);
     resize(700, 450);
 
@@ -123,10 +123,9 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
 
     auto* mainLayout = new QVBoxLayout(this);
 
-    // Table: Game, Emulator, User, Ping
     m_table = new QTableWidget(0, 4, this);
     m_table->setObjectName("KailleraSurface");
-    m_table->setHorizontalHeaderLabels({"Game", "Emulator", "User", "Ping"});
+    m_table->setHorizontalHeaderLabels({tr("Game"), tr("Emulator"), tr("User"), tr("Ping")});
     m_table->horizontalHeader()->setStretchLastSection(true);
     m_table->horizontalHeader()->resizeSection(0, 250);
     m_table->horizontalHeader()->resizeSection(1, 170);
@@ -144,7 +143,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
     mainLayout->addWidget(m_table, 1);
 
     // Status label
-    m_statusLabel = new QLabel("Downloading...", this);
+    m_statusLabel = new QLabel(tr("Downloading..."), this);
     if (theme == "Modern")
     {
         m_statusLabel->setObjectName("KailleraStatusLabel");
@@ -153,7 +152,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
 
     // Buttons
     auto* btnLayout = new QHBoxLayout();
-    m_btnConnect = new QPushButton("Connect", this);
+    m_btnConnect = new QPushButton(tr("Connect"), this);
     if (theme == "Modern")
     {
         m_btnConnect->setObjectName("KailleraPrimaryButton");
@@ -161,7 +160,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
     connect(m_btnConnect, &QPushButton::clicked, this, &KailleraWaitingGamesDialog::onConnect);
     btnLayout->addWidget(m_btnConnect);
 
-    m_btnRefresh = new QPushButton("Refresh", this);
+    m_btnRefresh = new QPushButton(tr("Refresh"), this);
     if (theme == "Modern")
     {
         m_btnRefresh->setObjectName("KailleraSecondaryButton");
@@ -171,7 +170,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
 
     btnLayout->addStretch();
 
-    m_btnClose = new QPushButton("Close", this);
+    m_btnClose = new QPushButton(tr("Close"), this);
     if (theme == "Modern")
     {
         m_btnClose->setObjectName("KailleraSecondaryButton");
@@ -186,7 +185,7 @@ KailleraWaitingGamesDialog::KailleraWaitingGamesDialog(QWidget* parent)
 void KailleraWaitingGamesDialog::fetchList()
 {
     m_table->setRowCount(0);
-    m_statusLabel->setText("Downloading...");
+    m_statusLabel->setText(tr("Downloading..."));
     m_btnRefresh->setEnabled(false);
 
     QNetworkRequest request{QUrl(kPlistUrl)};
@@ -199,7 +198,7 @@ void KailleraWaitingGamesDialog::onFetchFinished(QNetworkReply* reply)
 
     if (reply->error() != QNetworkReply::NoError)
     {
-        m_statusLabel->setText("Error: " + reply->errorString());
+        m_statusLabel->setText(tr("Error: %1").arg(reply->errorString()));
         reply->deleteLater();
         return;
     }
@@ -209,7 +208,7 @@ void KailleraWaitingGamesDialog::onFetchFinished(QNetworkReply* reply)
 
     if (data.size() < 7)
     {
-        m_statusLabel->setText("No games found.");
+        m_statusLabel->setText(tr("No games found."));
         return;
     }
 
@@ -226,7 +225,7 @@ void KailleraWaitingGamesDialog::parseResponse(const QByteArray& data)
 
     if (body.trimmed().isEmpty())
     {
-        m_statusLabel->setText("No games found.");
+        m_statusLabel->setText(tr("No games found."));
         return;
     }
 
@@ -276,7 +275,7 @@ void KailleraWaitingGamesDialog::parseResponse(const QByteArray& data)
     }
 
     m_table->setSortingEnabled(true);
-    m_statusLabel->setText(QString("%1 waiting games found").arg(total));
+    m_statusLabel->setText(tr("%1 waiting games found").arg(total));
 }
 
 void KailleraWaitingGamesDialog::onConnect()

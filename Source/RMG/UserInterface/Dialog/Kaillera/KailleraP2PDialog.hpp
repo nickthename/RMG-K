@@ -23,6 +23,8 @@
 #include <QGroupBox>
 #include <QAction>
 
+class QEvent;
+
 class KailleraP2PDialog : public QDialog
 {
     Q_OBJECT
@@ -39,6 +41,7 @@ signals:
     void rollbackSessionReady(QString gameName, QString remoteAddress, int localPort, int remotePort, int localPlayer, int frameDelay, int predictionWindow);
 
 protected:
+    void changeEvent(QEvent* event) override;
     void reject() override;
 
 private slots:
@@ -70,6 +73,8 @@ private:
     };
 
     void setupUI();
+    void retranslateUi();
+    void populatePredictionWindowCombo();
     void connectSignals();
     void cleanupSessionForClose();
     void setGameLayer(GameLayer layer, bool announceToPeer, bool resetReady);
@@ -131,8 +136,10 @@ private:
     QLabel* m_frameDelayLabel = nullptr;
     QWidget* m_frameDelayRow = nullptr;
     QComboBox* m_frameDelayCombo = nullptr;
+    QLabel* m_predictionWindowLabel = nullptr;
     QWidget* m_predictionWindowRow = nullptr;
     QComboBox* m_predictionWindowCombo = nullptr;
+    QLabel* m_connectCodeLabel = nullptr;
     QLineEdit* m_connectCodeEdit = nullptr;
     QAction* m_copyAction = nullptr;
 

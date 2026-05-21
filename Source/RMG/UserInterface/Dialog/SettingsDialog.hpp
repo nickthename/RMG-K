@@ -68,6 +68,7 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
 
     QColor currentBackgroundColor;
     QColor currentTextColor;
+    QWidget* rollbackTab = nullptr;
     QCheckBox* rollbackVerboseStatsCheckBox = nullptr;
     QCheckBox* rollbackEnableLocalTestingCheckBox = nullptr;
 
@@ -148,6 +149,7 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     bool applyPluginSettings(void);
 
   protected:
+    void changeEvent(QEvent* event) Q_DECL_OVERRIDE;
     void closeEvent(QCloseEvent* event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent* event) Q_DECL_OVERRIDE;
 

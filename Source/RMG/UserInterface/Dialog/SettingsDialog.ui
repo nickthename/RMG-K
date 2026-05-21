@@ -57,6 +57,21 @@
               </attribute>
               <layout class="QVBoxLayout" name="verticalLayout_7">
                <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_15">
+                 <item>
+                  <widget class="QLabel" name="languageLabel">
+                   <property name="text">
+                    <string>Language</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QComboBox" name="languageComboBox">
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
                 <layout class="QHBoxLayout" name="horizontalLayout_13">
                  <item>
                   <widget class="QLabel" name="label_12">

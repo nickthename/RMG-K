@@ -8,6 +8,7 @@
  *  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 #include "UserInterface/Dialog/Netplay/NetplayCommon.hpp"
+#include "UserInterface/TranslationManager.hpp"
 #include "UserInterface/Widget/KeybindButton.hpp"
 #include "Utilities/QtMessageBox.hpp"
 #include "OnScreenDisplay.hpp"
@@ -16,11 +17,13 @@
 #include <QRegularExpressionValidator>
 #include <QCryptographicHash>
 #include <QRegularExpression>
+#include <QCoreApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QDirIterator>
+#include <QEvent>
 #include <QLabel>
 #include <QDir>
 #include <QIcon>
@@ -151,6 +154,22 @@ static QString selectedThemeValue(const QComboBox* comboBox)
     return comboBox->currentText();
 }
 
+static QString selectedStoredComboValue(const QComboBox* comboBox)
+{
+    if (comboBox == nullptr)
+    {
+        return QString();
+    }
+
+    const QVariant data = comboBox->currentData();
+    if (data.isValid() && !data.toString().isEmpty())
+    {
+        return data.toString();
+    }
+
+    return comboBox->currentText();
+}
+
 static void populateThemeCombo(QComboBox* comboBox, const QList<ThemeOption>& options, bool showLegacy, const QString& selectedValue)
 {
     if (comboBox == nullptr)
@@ -179,6 +198,50 @@ static void populateThemeCombo(QComboBox* comboBox, const QList<ThemeOption>& op
     {
         comboBox->setCurrentIndex(selectedIndex);
     }
+}
+
+static void populateLanguageCombo(QComboBox* comboBox, const QString& selectedValue)
+{
+    if (comboBox == nullptr)
+    {
+        return;
+    }
+
+    const bool blocked = comboBox->blockSignals(true);
+    comboBox->clear();
+
+    int selectedIndex = -1;
+    const QList<UserInterface::TranslationLanguage> languages =
+        UserInterface::TranslationManager::instance().availableLanguages();
+    for (const UserInterface::TranslationLanguage& language : languages)
+    {
+        comboBox->addItem(language.displayName, language.code);
+        if (language.code == selectedValue)
+        {
+            selectedIndex = comboBox->count() - 1;
+        }
+    }
+
+    comboBox->setCurrentIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    comboBox->blockSignals(blocked);
+}
+
+static void populateIconThemeCombo(QComboBox* comboBox, const QString& selectedValue)
+{
+    if (comboBox == nullptr)
+    {
+        return;
+    }
+
+    const bool blocked = comboBox->blockSignals(true);
+    comboBox->clear();
+    comboBox->addItem(QCoreApplication::translate("SettingsDialog", "Automatic"), "Automatic");
+    comboBox->addItem(QCoreApplication::translate("SettingsDialog", "White"), "White");
+    comboBox->addItem(QCoreApplication::translate("SettingsDialog", "Black"), "Black");
+
+    const int selectedIndex = comboBox->findData(selectedValue);
+    comboBox->setCurrentIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    comboBox->blockSignals(blocked);
 }
 
 //
@@ -227,14 +290,14 @@ SettingsDialog::SettingsDialog(QWidget *parent, QString file) : QDialog(parent)
     setupDirectoryChangeButtonIcon(this->changeSaveSramDirButton);
     setupDirectoryChangeButtonIcon(this->changeKailleraRecordsDirectoryButton);
 
-    QWidget* rollbackTab = new QWidget(this->tabWidget);
-    QVBoxLayout* rollbackLayout = new QVBoxLayout(rollbackTab);
-    this->rollbackVerboseStatsCheckBox = new QCheckBox("Enable verbose rollback stats messaging", rollbackTab);
-    this->rollbackEnableLocalTestingCheckBox = new QCheckBox("Use rollback engine for local play", rollbackTab);
+    this->rollbackTab = new QWidget(this->tabWidget);
+    QVBoxLayout* rollbackLayout = new QVBoxLayout(this->rollbackTab);
+    this->rollbackVerboseStatsCheckBox = new QCheckBox(tr("Enable verbose rollback stats messaging"), this->rollbackTab);
+    this->rollbackEnableLocalTestingCheckBox = new QCheckBox(tr("Use rollback engine for local play"), this->rollbackTab);
     rollbackLayout->addWidget(this->rollbackVerboseStatsCheckBox);
     rollbackLayout->addWidget(this->rollbackEnableLocalTestingCheckBox);
     rollbackLayout->addStretch();
-    this->tabWidget->addTab(rollbackTab, "Rollback");
+    this->tabWidget->addTab(this->rollbackTab, tr("Rollback"));
 
     this->setIconsForEmulationInfoText();
 
@@ -833,8 +896,9 @@ void SettingsDialog::loadInterfaceGeneralSettings(void)
     const bool blocked = this->showLegacyThemesCheckBox->blockSignals(true);
     this->showLegacyThemesCheckBox->setChecked(showLegacy);
     this->showLegacyThemesCheckBox->blockSignals(blocked);
+    populateLanguageCombo(this->languageComboBox, QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_Language)));
     populateThemeCombo(this->themeComboBox, themeOptions, showLegacy, currentTheme);
-    this->iconThemeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_IconTheme)));
+    populateIconThemeCombo(this->iconThemeComboBox, QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_IconTheme)));
     this->autoStartNetplayOnStartupCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup));
 #ifdef UPDATER
     this->checkForUpdatesCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_CheckForUpdates));
@@ -1085,8 +1149,9 @@ void SettingsDialog::loadDefaultInterfaceGeneralSettings(void)
     const bool blocked = this->showLegacyThemesCheckBox->blockSignals(true);
     this->showLegacyThemesCheckBox->setChecked(showLegacy);
     this->showLegacyThemesCheckBox->blockSignals(blocked);
+    populateLanguageCombo(this->languageComboBox, QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_Language)));
     populateThemeCombo(this->themeComboBox, themeOptions, showLegacy, defaultTheme);
-    this->iconThemeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_IconTheme)));
+    populateIconThemeCombo(this->iconThemeComboBox, QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_IconTheme)));
     this->autoStartNetplayOnStartupCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup));
 #ifdef UPDATER
     this->checkForUpdatesCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_CheckForUpdates));
@@ -1360,12 +1425,14 @@ void SettingsDialog::saveHotkeySettings(void)
 
 void SettingsDialog::saveInterfaceGeneralSettings(void)
 {
+    CoreSettingsSetValue(SettingsID::GUI_Language, selectedStoredComboValue(this->languageComboBox).toStdString());
     CoreSettingsSetValue(SettingsID::GUI_Theme, selectedThemeValue(this->themeComboBox).toStdString());
-    CoreSettingsSetValue(SettingsID::GUI_IconTheme, this->iconThemeComboBox->currentText().toStdString());
+    CoreSettingsSetValue(SettingsID::GUI_IconTheme, selectedStoredComboValue(this->iconThemeComboBox).toStdString());
     CoreSettingsSetValue(SettingsID::GUI_AutoStartNetplayOnStartup, this->autoStartNetplayOnStartupCheckBox->isChecked());
 #ifdef UPDATER
     CoreSettingsSetValue(SettingsID::GUI_CheckForUpdates, this->checkForUpdatesCheckBox->isChecked());
 #endif // UPDATER
+    UserInterface::TranslationManager::instance().applyConfiguredLanguage(QCoreApplication::instance());
 }
 
 void SettingsDialog::saveInterfaceEmulationSettings(void)
@@ -1853,6 +1920,41 @@ bool SettingsDialog::applyPluginSettings(void)
         }
     }
     return true;
+}
+
+void SettingsDialog::changeEvent(QEvent* event)
+{
+    if (event->type() == QEvent::LanguageChange)
+    {
+        const QString currentLanguage = selectedStoredComboValue(this->languageComboBox);
+        const QString currentIconTheme = selectedStoredComboValue(this->iconThemeComboBox);
+        const QString currentTheme = selectedThemeValue(this->themeComboBox);
+
+        this->retranslateUi(this);
+        populateLanguageCombo(this->languageComboBox, currentLanguage);
+        populateIconThemeCombo(this->iconThemeComboBox, currentIconTheme);
+        populateThemeCombo(this->themeComboBox, collectAvailableThemeOptions(),
+            this->showLegacyThemesCheckBox->isChecked(), currentTheme);
+
+        if (this->rollbackVerboseStatsCheckBox != nullptr)
+        {
+            this->rollbackVerboseStatsCheckBox->setText(tr("Enable verbose rollback stats messaging"));
+        }
+        if (this->rollbackEnableLocalTestingCheckBox != nullptr)
+        {
+            this->rollbackEnableLocalTestingCheckBox->setText(tr("Use rollback engine for local play"));
+        }
+        if (this->rollbackTab != nullptr)
+        {
+            const int rollbackIndex = this->tabWidget->indexOf(this->rollbackTab);
+            if (rollbackIndex >= 0)
+            {
+                this->tabWidget->setTabText(rollbackIndex, tr("Rollback"));
+            }
+        }
+    }
+
+    QDialog::changeEvent(event);
 }
 
 void SettingsDialog::closeEvent(QCloseEvent* event)

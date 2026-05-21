@@ -5,7 +5,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS Gui Widgets Core REQUIRED)
+find_package(Qt6 COMPONENTS Gui Widgets Core LinguistTools REQUIRED)
 
 if (NOT WIN32)
     find_package(Qt6 REQUIRED COMPONENTS DBus)
@@ -50,6 +50,7 @@ endif()
 set(RMG_SOURCES
     UserInterface/MainWindow.cpp
     UserInterface/MainWindow.ui
+    UserInterface/TranslationManager.cpp
     UserInterface/Widget/RomBrowser/RomBrowserWidget.cpp
     UserInterface/Widget/RomBrowser/RomBrowserListViewWidget.cpp
     UserInterface/Widget/RomBrowser/RomBrowserGridViewWidget.cpp
@@ -154,6 +155,28 @@ endif()
 
 set_target_properties(RMG PROPERTIES OUTPUT_NAME "RMG-K")
 
+set(RMG_TRANSLATION_TS_FILES
+    Translations/rmgk_ja.ts
+)
+qt_add_translation(RMG_TRANSLATION_QM_FILES ${RMG_TRANSLATION_TS_FILES})
+add_custom_target(RMGTranslations ALL DEPENDS ${RMG_TRANSLATION_QM_FILES})
+add_dependencies(RMG RMGTranslations)
+
+foreach(RMG_TRANSLATION_QM_FILE ${RMG_TRANSLATION_QM_FILES})
+    get_filename_component(RMG_TRANSLATION_QM_NAME "${RMG_TRANSLATION_QM_FILE}" NAME)
+    add_custom_command(TARGET RMG POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:RMG>/Data/Translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${RMG_TRANSLATION_QM_FILE}"
+            "$<TARGET_FILE_DIR:RMG>/Data/Translations/${RMG_TRANSLATION_QM_NAME}"
+        VERBATIM
+    )
+endforeach()
+
+install(FILES ${RMG_TRANSLATION_QM_FILES}
+    DESTINATION ${DATA_INSTALL_PATH}/Translations
+)
+
 target_link_libraries(RMG 
     RMG-Core
     imgui
@@ -174,7 +197,7 @@ target_include_directories(RMG PRIVATE
     ${HIDAPI_INCLUDE_DIRS}
 )
 
-target_link_libraries(RMG Qt6::Gui Qt6::Widgets ${HIDAPI_LIBRARIES})
+target_link_libraries(RMG Qt6::Gui Qt6::Widgets Qt6::Core ${HIDAPI_LIBRARIES})
 
 if (NOT WIN32)
     target_link_libraries(RMG Qt6::DBus)

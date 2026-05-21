@@ -10,6 +10,7 @@
 #include "MainWindow.hpp"
 
 #include "UserInterface/Dialog/AboutDialog.hpp"
+#include "UserInterface/TranslationManager.hpp"
 #include "Dialog/Cheats/CheatsDialog.hpp"
 #include "Dialog/SettingsDialog.hpp"
 #include "Dialog/RomInfoDialog.hpp"
@@ -1552,6 +1553,8 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
         this->showErrorMessage("CoreInit() Failed", QString::fromStdString(CoreGetError()));
         return false;
     }
+
+    UserInterface::TranslationManager::instance().applyConfiguredLanguage(app);
 
     if (!CoreApplyPluginSettings())
     {
