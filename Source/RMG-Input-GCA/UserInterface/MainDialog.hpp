@@ -37,11 +37,11 @@ private slots:
     void on_deadZoneSlider_valueChanged(int value);
     void on_sensitivitySlider_valueChanged(int value);
     void on_triggerTresholdSlider_valueChanged(int value);
-    void on_cButtonTresholdSlider_valueChanged(int value);
 
     void onMappingButtonClicked(int index);
     void onClearButtonClicked(int index);
     void onPollTimerTimeout(void);
+    void onAxisReadoutTimer(void);
 
 private:
     void loadMappings(void);
@@ -49,6 +49,7 @@ private:
     void setDefaultMappings(void);
     void updateMappingButtons(void);
     void clearDuplicateMapping(int assignedIndex, GCInput input);
+    void updateAxisReadout(void);
 
     std::array<QPushButton*, N64_BUTTON_COUNT> m_MappingButtons;
     std::array<QPushButton*, N64_BUTTON_COUNT> m_ClearButtons;
@@ -56,6 +57,7 @@ private:
     std::array<SettingsID, N64_BUTTON_COUNT> m_MappingSettingsIDs;
 
     QTimer* m_PollTimer = nullptr;
+    QTimer* m_AxisReadoutTimer = nullptr;
     int m_ListeningIndex = -1;
     GameCubeAdapterControllerState m_PrevState = {};
     int m_ListenTickCount = 0;

@@ -23,6 +23,8 @@
 #include "n64_cic_nus_6105.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -36,6 +38,7 @@
 #include "plugin/plugin.h"
 #include "main/netplay.h"
 #include "main/pif_sync_callback.h"
+#include "osal/files.h"
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -62,6 +65,267 @@ void print_pif(struct pif* pif)
     }
 }
 #endif
+
+enum { ROLLBACK_INPUT_PLAYERS = 4 };
+
+static m64p_rollback_input_callback l_rollback_input_callback = NULL;
+static uint32_t l_rollback_input_values[ROLLBACK_INPUT_PLAYERS];
+static int l_rollback_input_valid = 0;
+static int l_rollback_input_players = 0;
+
+static uint32_t rollback_read_controller_input(const uint8_t* rx_buf)
+{
+    return ((uint32_t)rx_buf[0] << 24)
+        | ((uint32_t)rx_buf[1] << 16)
+        | ((uint32_t)rx_buf[2] << 8)
+        | (uint32_t)rx_buf[3];
+}
+
+static void rollback_write_controller_input(uint8_t* rx_buf, uint32_t value)
+{
+    rx_buf[0] = (uint8_t)((value >> 24) & 0xff);
+    rx_buf[1] = (uint8_t)((value >> 16) & 0xff);
+    rx_buf[2] = (uint8_t)((value >> 8) & 0xff);
+    rx_buf[3] = (uint8_t)(value & 0xff);
+}
+
+static int rollback_channel_has_command(const struct pif_channel* channel)
+{
+    return channel->tx != NULL
+        && channel->rx != NULL
+        && channel->tx_buf != NULL
+        && channel->rx_buf != NULL;
+}
+
+static int rollback_verbose_pif_input_logging_enabled(void)
+{
+    const char* value = getenv("RMGK_VERBOSE_PIF_INPUT_LOGGING");
+    return value != NULL && value[0] == '1';
+}
+
+static const char* rollback_log_path_separator(const char* directory)
+{
+    size_t length;
+    char last;
+
+    if (directory == NULL) {
+        return "";
+    }
+
+    length = strlen(directory);
+    if (length == 0) {
+        return "";
+    }
+
+    last = directory[length - 1];
+    return (last == '/' || last == '\\') ? "" : "/";
+}
+
+static FILE* rollback_open_log_file(const char* suffix)
+{
+    const char* directory = getenv("RMGK_ROLLBACK_LOG_DIR");
+    const char* prefix = getenv("RMGK_ROLLBACK_LOG_PREFIX");
+    char path[PATH_MAX];
+    int written;
+    FILE* file;
+
+    if (directory != NULL && directory[0] != '\0' && prefix != NULL && prefix[0] != '\0') {
+        written = snprintf(path, sizeof(path), "%s%s%s_%s.log",
+            directory,
+            rollback_log_path_separator(directory),
+            prefix,
+            suffix);
+        if (written > 0 && (size_t)written < sizeof(path)) {
+            file = fopen(path, "a");
+            if (file != NULL) {
+                return file;
+            }
+        }
+    }
+
+    osal_mkdirp("Logs", 0700);
+    written = snprintf(path, sizeof(path), "Logs%srollback_%s.log", rollback_log_path_separator("Logs"), suffix);
+    if (written > 0 && (size_t)written < sizeof(path)) {
+        file = fopen(path, "a");
+        if (file != NULL) {
+            return file;
+        }
+    }
+
+    osal_mkdirp("Bin/Release/Logs", 0700);
+    written = snprintf(path, sizeof(path), "Bin/Release/Logs%srollback_%s.log",
+        rollback_log_path_separator("Bin/Release/Logs"),
+        suffix);
+    if (written > 0 && (size_t)written < sizeof(path)) {
+        return fopen(path, "a");
+    }
+
+    return NULL;
+}
+
+static void rollback_log_pif_channel(const char* phase, size_t index, const struct pif_channel* channel)
+{
+    FILE* file;
+
+    if (!rollback_verbose_pif_input_logging_enabled() || l_rollback_input_callback == NULL || l_rollback_input_players <= 0 || !rollback_channel_has_command(channel)) {
+        return;
+    }
+
+    file = rollback_open_log_file("pif");
+    if (file == NULL) {
+        return;
+    }
+
+    fprintf(file,
+        "phase=%s ch=%u tx=0x%02x rx=0x%02x cmd=0x%02x ijbd=%d rx0=0x%02x rx1=0x%02x rx2=0x%02x rx3=0x%02x rx32=0x%02x\n",
+        phase,
+        (unsigned)index,
+        (unsigned)*channel->tx,
+        (unsigned)*channel->rx,
+        (unsigned)channel->tx_buf[0],
+        channel->ijbd != NULL,
+        (unsigned)channel->rx_buf[0],
+        (unsigned)channel->rx_buf[1],
+        (unsigned)channel->rx_buf[2],
+        (unsigned)channel->rx_buf[3],
+        (unsigned)channel->rx_buf[32]);
+
+    fclose(file);
+}
+
+static void rollback_force_controller_present(struct pif_channel* channel)
+{
+    if (!rollback_channel_has_command(channel)) {
+        return;
+    }
+
+    switch (channel->tx_buf[0])
+    {
+    case JCMD_STATUS:
+    case JCMD_RESET:
+        *channel->rx &= (uint8_t)~0xc0;
+        channel->rx_buf[0] = 0x05;
+        channel->rx_buf[1] = 0x00;
+        channel->rx_buf[2] = 0x00;
+        break;
+    case JCMD_CONTROLLER_READ:
+        *channel->rx &= (uint8_t)~0xc0;
+        channel->rx_buf[0] = 0x00;
+        channel->rx_buf[1] = 0x00;
+        channel->rx_buf[2] = 0x00;
+        channel->rx_buf[3] = 0x00;
+        break;
+    case JCMD_PAK_READ:
+        *channel->rx &= (uint8_t)~0xc0;
+        if (channel->ijbd == NULL) {
+            channel->rx_buf[32] = 0xff;
+        }
+        break;
+    case JCMD_PAK_WRITE:
+        *channel->rx &= (uint8_t)~0xc0;
+        if (channel->ijbd == NULL) {
+            channel->rx_buf[0] = 0xff;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+static int rollback_should_skip_raw_pif_channel(size_t player)
+{
+    return l_rollback_input_callback != NULL
+        && player < (size_t)l_rollback_input_players
+        && player < NUM_CONTROLLER
+        && Controls[player].RawData;
+}
+
+void pif_begin_rollback_input_frame(void)
+{
+    l_rollback_input_valid = 0;
+}
+
+void pif_set_rollback_input_callback(m64p_rollback_input_callback callback)
+{
+    l_rollback_input_callback = callback;
+    l_rollback_input_valid = 0;
+    if (callback == NULL) {
+        l_rollback_input_players = 0;
+    }
+}
+
+void pif_set_rollback_input_players(int players)
+{
+    if (players < 0) {
+        players = 0;
+    }
+    if (players > ROLLBACK_INPUT_PLAYERS) {
+        players = ROLLBACK_INPUT_PLAYERS;
+    }
+
+    l_rollback_input_players = players;
+    l_rollback_input_valid = 0;
+}
+
+static void rollback_sync_input(struct pif* pif)
+{
+    uint32_t input_values[ROLLBACK_INPUT_PLAYERS] = { 0 };
+    int has_controller_read = 0;
+    size_t k;
+
+    if (l_rollback_input_callback == NULL) {
+        return;
+    }
+
+    for (k = 0; k < (size_t)l_rollback_input_players && k < PIF_CHANNELS_COUNT; ++k) {
+        rollback_force_controller_present(&pif->channels[k]);
+    }
+
+    if (l_rollback_input_valid) {
+        for (k = 0; k < (size_t)l_rollback_input_players && k < PIF_CHANNELS_COUNT; ++k) {
+            struct pif_channel* channel = &pif->channels[k];
+
+            if (rollback_channel_has_command(channel)
+            && channel->tx_buf[0] == JCMD_CONTROLLER_READ) {
+                *channel->rx &= (uint8_t)~0xc0;
+                rollback_write_controller_input(channel->rx_buf, l_rollback_input_values[k]);
+            }
+        }
+        return;
+    }
+
+    for (k = 0; k < (size_t)l_rollback_input_players && k < PIF_CHANNELS_COUNT; ++k) {
+        struct pif_channel* channel = &pif->channels[k];
+
+        if (rollback_channel_has_command(channel)
+        && channel->tx_buf[0] == JCMD_CONTROLLER_READ
+        && ((*channel->rx & 0x80) == 0)) {
+            has_controller_read = 1;
+            input_values[k] = rollback_read_controller_input(channel->rx_buf);
+        }
+    }
+
+    if (!has_controller_read) {
+        return;
+    }
+
+    if (!l_rollback_input_callback(input_values, sizeof(input_values[0]), l_rollback_input_players)) {
+        return;
+    }
+
+    memcpy(l_rollback_input_values, input_values, sizeof(l_rollback_input_values));
+    l_rollback_input_valid = 1;
+
+    for (k = 0; k < (size_t)l_rollback_input_players && k < PIF_CHANNELS_COUNT; ++k) {
+        struct pif_channel* channel = &pif->channels[k];
+
+        if (rollback_channel_has_command(channel)
+        && channel->tx_buf[0] == JCMD_CONTROLLER_READ) {
+            *channel->rx &= (uint8_t)~0xc0;
+            rollback_write_controller_input(channel->rx_buf, input_values[k]);
+        }
+    }
+}
 
 static void process_channel(struct pif_channel* channel)
 {
@@ -371,18 +635,32 @@ void process_pif_ram(struct pif* pif)
 void update_pif_ram(struct pif* pif)
 {
     size_t k;
+    int skipped_raw_pif_channel = 0;
 
     /* perform PIF/Channel communications */
     for (k = 0; k < PIF_CHANNELS_COUNT; ++k) {
+        if (rollback_should_skip_raw_pif_channel(k)) {
+            skipped_raw_pif_channel = 1;
+            rollback_log_pif_channel("skip-before", k, &pif->channels[k]);
+            rollback_force_controller_present(&pif->channels[k]);
+            rollback_log_pif_channel("skip-after", k, &pif->channels[k]);
+            continue;
+        }
+        rollback_log_pif_channel("native-before", k, &pif->channels[k]);
         process_channel(&pif->channels[k]);
+        rollback_log_pif_channel("native-after", k, &pif->channels[k]);
     }
 
     /* Zilmar-Spec plugin expect a call with control_id = -1 when RAM processing is done */
-    if (input.readController) {
+    if (input.readController && !skipped_raw_pif_channel) {
         input.readController(-1, NULL);
     }
 
     netplay_update_input(pif);
+    rollback_sync_input(pif);
+    for (k = 0; k < PIF_CHANNELS_COUNT; ++k) {
+        rollback_log_pif_channel("post-rollback", k, &pif->channels[k]);
+    }
     call_pif_sync_callback(pif);
 
 #ifdef DEBUG_PIF
@@ -397,4 +675,3 @@ void hw2_int_handler(void* opaque)
 
     raise_maskable_interrupt(pif->r4300, CP0_CAUSE_IP4);
 }
-

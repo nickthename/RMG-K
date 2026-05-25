@@ -66,25 +66,17 @@
                   </widget>
                  </item>
                  <item>
-                  <widget class="QComboBox" name="themeComboBox">
-                   <item>
-                    <property name="text">
-                     <string>Native</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Fusion</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Fusion Dark</string>
-                    </property>
-                   </item>
+                 <widget class="QComboBox" name="themeComboBox">
                   </widget>
                  </item>
                 </layout>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="showLegacyThemesCheckBox">
+                 <property name="text">
+                  <string>Show legacy themes</string>
+                 </property>
+                </widget>
                </item>
                <item>
                 <layout class="QHBoxLayout" name="horizontalLayout_14">
@@ -176,7 +168,7 @@
                     <number>1</number>
                    </property>
                    <property name="text">
-                    <string>Changes will be applied on next application run</string>
+                    <string>Theme changes apply immediately</string>
                    </property>
                    <property name="textFormat">
                     <enum>Qt::TextFormat::PlainText</enum>
@@ -225,6 +217,89 @@
                  <property name="text">
                   <string>Automatically switch to fullscreen on emulation start</string>
                  </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="exclusiveFullscreenGroupBox">
+                 <property name="title">
+                  <string>Exclusive Fullscreen</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="exclusiveFullscreenLayout">
+                  <item>
+                   <widget class="QCheckBox" name="exclusiveFullscreenCheckBox">
+                    <property name="text">
+                     <string>Use exclusive fullscreen instead of borderless</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="betaFullscreenBackendCheckBox">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
+                    <property name="toolTip">
+                     <string>This fullscreen mode is beta and does not support toggling fullscreen or OSD messages.</string>
+                    </property>
+                    <property name="text">
+                     <string>Use experimental fullscreen mode</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="exclusiveMonitorLayout">
+                    <item>
+                     <widget class="QLabel" name="exclusiveMonitorLabel">
+                      <property name="text">
+                       <string>Monitor</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="exclusiveMonitorComboBox">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="exclusiveResolutionLayout">
+                    <item>
+                     <widget class="QLabel" name="exclusiveResolutionLabel">
+                      <property name="text">
+                       <string>Resolution</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="exclusiveResolutionComboBox">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="exclusiveRefreshRateLayout">
+                    <item>
+                     <widget class="QLabel" name="exclusiveRefreshRateLabel">
+                      <property name="text">
+                       <string>Refresh rate</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="exclusiveRefreshRateComboBox">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
                 </widget>
                </item>
                <item>
@@ -432,195 +507,233 @@
                  <property name="text">
                   <string>Enable On-Screen Display</string>
                  </property>
+               </widget>
+              </item>
+              <item>
+                <widget class="QGroupBox" name="osdGlobalSettingsGroupBox">
+                 <property name="title">
+                  <string>Global OSD settings</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_46">
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_15">
+                    <item>
+                     <widget class="QLabel" name="label_14">
+                      <property name="text">
+                       <string>Background color</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="changeBackgroundColorButton">
+                      <property name="text">
+                       <string/>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_16">
+                    <item>
+                     <widget class="QLabel" name="label_15">
+                      <property name="text">
+                       <string>Text color</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="changeTextColorButton">
+                      <property name="text">
+                       <string/>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
                 </widget>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_10">
-                 <item>
-                  <widget class="QLabel" name="label_9">
-                   <property name="text">
-                    <string>Location</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QComboBox" name="osdLocationComboBox">
-                   <item>
-                    <property name="text">
-                     <string>Bottom Left</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Top Left</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Top Right</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>Bottom Right</string>
-                    </property>
-                   </item>
-                  </widget>
-                 </item>
-                </layout>
+                <widget class="QCheckBox" name="osdChatEnabledCheckBox">
+                 <property name="text">
+                  <string>Show Kaillera chat on-screen</string>
+                 </property>
+                </widget>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_8">
-                 <item>
-                  <widget class="QLabel" name="label_7">
-                   <property name="text">
-                    <string>Vertical padding</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="osdVerticalPaddingSpinBox">
-                   <property name="specialValueText">
-                    <string/>
-                   </property>
-                   <property name="suffix">
-                    <string> px</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
+                <widget class="QGroupBox" name="osdChatSettingsGroupBox">
+                 <property name="title">
+                  <string>Chat settings</string>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_48">
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_10">
+                       <item>
+                        <widget class="QLabel" name="label_9">
+                         <property name="text">
+                          <string>Location</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QComboBox" name="osdLocationComboBox">
+                         <item>
+                          <property name="text">
+                           <string>Bottom Left</string>
+                          </property>
+                         </item>
+                         <item>
+                          <property name="text">
+                           <string>Top Left</string>
+                          </property>
+                         </item>
+                         <item>
+                          <property name="text">
+                           <string>Top Right</string>
+                          </property>
+                         </item>
+                         <item>
+                          <property name="text">
+                           <string>Bottom Right</string>
+                          </property>
+                         </item>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_8">
+                       <item>
+                        <widget class="QLabel" name="label_7">
+                         <property name="text">
+                          <string>Vertical padding</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QSpinBox" name="osdVerticalPaddingSpinBox">
+                         <property name="specialValueText">
+                          <string/>
+                         </property>
+                         <property name="suffix">
+                          <string> px</string>
+                         </property>
+                         <property name="maximum">
+                          <number>9999</number>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_9">
+                       <item>
+                        <widget class="QLabel" name="label_8">
+                         <property name="text">
+                          <string>Horizontal padding</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QSpinBox" name="osdHorizontalPaddingSpinBox">
+                         <property name="specialValueText">
+                          <string/>
+                         </property>
+                         <property name="suffix">
+                          <string> px</string>
+                         </property>
+                         <property name="maximum">
+                          <number>9999</number>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_12">
+                       <item>
+                        <widget class="QLabel" name="label_11">
+                         <property name="text">
+                          <string>Duration</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QSpinBox" name="osdDurationSpinBox">
+                         <property name="suffix">
+                          <string> seconds</string>
+                         </property>
+                         <property name="minimum">
+                          <number>1</number>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_23">
+                       <item>
+                        <widget class="QLabel" name="label_20">
+                         <property name="text">
+                          <string>Scale</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QDoubleSpinBox" name="osdScaleDoubleSpinBox">
+                         <property name="decimals">
+                          <number>2</number>
+                         </property>
+                         <property name="singleStep">
+                          <double>0.100000000000000</double>
+                         </property>
+                         <property name="minimum">
+                          <double>0.500000000000000</double>
+                         </property>
+                         <property name="maximum">
+                          <double>3.000000000000000</double>
+                         </property>
+                         <property name="suffix">
+                          <string>x</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                     <item>
+                      <layout class="QHBoxLayout" name="horizontalLayout_22">
+                       <item>
+                        <widget class="QLabel" name="label_19">
+                         <property name="text">
+                          <string>Max messages</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QSpinBox" name="osdMaxMessagesSpinBox">
+                         <property name="suffix">
+                          <string> messages</string>
+                         </property>
+                         <property name="minimum">
+                          <number>1</number>
+                         </property>
+                         <property name="maximum">
+                          <number>50</number>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                 </layout>
+                </widget>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_9">
-                 <item>
-                  <widget class="QLabel" name="label_8">
-                   <property name="text">
-                    <string>Horizontal padding</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="osdHorizontalPaddingSpinBox">
-                   <property name="specialValueText">
-                    <string/>
-                   </property>
-                   <property name="suffix">
-                    <string> px</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_15">
-                 <item>
-                  <widget class="QLabel" name="label_14">
-                   <property name="text">
-                    <string>Background color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="changeBackgroundColorButton">
-                   <property name="text">
-                    <string/>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_16">
-                 <item>
-                  <widget class="QLabel" name="label_15">
-                   <property name="text">
-                    <string>Text color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="changeTextColorButton">
-                   <property name="text">
-                    <string/>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_12">
-                 <item>
-                  <widget class="QLabel" name="label_11">
-                   <property name="text">
-                    <string>Duration</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="osdDurationSpinBox">
-                   <property name="suffix">
-                    <string> seconds</string>
-                   </property>
-                   <property name="minimum">
-                    <number>1</number>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_23">
-                 <item>
-                  <widget class="QLabel" name="label_20">
-                   <property name="text">
-                    <string>Scale</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QDoubleSpinBox" name="osdScaleDoubleSpinBox">
-                   <property name="decimals">
-                    <number>2</number>
-                   </property>
-                   <property name="singleStep">
-                    <double>0.100000000000000</double>
-                   </property>
-                   <property name="minimum">
-                    <double>0.500000000000000</double>
-                   </property>
-                   <property name="maximum">
-                    <double>3.000000000000000</double>
-                   </property>
-                   <property name="suffix">
-                    <string>x</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_22">
-                 <item>
-                  <widget class="QLabel" name="label_19">
-                   <property name="text">
-                    <string>Max messages</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="osdMaxMessagesSpinBox">
-                   <property name="suffix">
-                    <string> messages</string>
-                   </property>
-                   <property name="minimum">
-                    <number>1</number>
-                   </property>
-                   <property name="maximum">
-                    <number>50</number>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
+                <widget class="QCheckBox" name="osdKailleraPortLabelsCheckBox">
+                 <property name="text">
+                  <string>Show Kaillera port labels</string>
+                 </property>
+                </widget>
                </item>
                <item>
                 <spacer name="verticalSpacer_17">
@@ -668,7 +781,7 @@
                     <number>1</number>
                    </property>
                    <property name="text">
-                    <string>The On-Screen Display will only work with OpenGL video plugins. These settings also apply to in-game Kaillera chat messages.</string>
+                    <string>The On-Screen Display will only work with OpenGL video plugins.</string>
                    </property>
                    <property name="textFormat">
                     <enum>Qt::TextFormat::PlainText</enum>
@@ -928,7 +1041,7 @@
                      </item>
                     </layout>
                    </item>
-                   <item>
+                  <item>
                     <layout class="QHBoxLayout" name="horizontalLayout_78">
                      <item>
                       <widget class="QLabel" name="label_75">
@@ -945,11 +1058,29 @@
                       </widget>
                      </item>
                     </layout>
-                   </item>
-                   <item>
-                    <layout class="QHBoxLayout" name="horizontalLayout_80">
-                     <item>
-                      <widget class="QLabel" name="label_77">
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_120">
+                    <item>
+                     <widget class="QLabel" name="label_120">
+                      <property name="text">
+                       <string>Netplay Chat</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="KeybindButton" name="netplayChatKeyButton">
+                      <property name="text">
+                       <string/>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayout_80">
+                    <item>
+                     <widget class="QLabel" name="label_77">
                        <property name="text">
                         <string>Save State</string>
                        </property>
@@ -2891,6 +3022,12 @@
                 <property name="icon">
                  <iconset theme="folder-open-line"/>
                 </property>
+                <property name="iconSize">
+                 <size>
+                  <width>16</width>
+                  <height>16</height>
+                 </size>
+                </property>
                </widget>
               </item>
              </layout>
@@ -2917,6 +3054,12 @@
                 <property name="icon">
                  <iconset theme="folder-open-line"/>
                 </property>
+                <property name="iconSize">
+                 <size>
+                  <width>16</width>
+                  <height>16</height>
+                 </size>
+                </property>
                </widget>
               </item>
              </layout>
@@ -2942,6 +3085,12 @@
                 </property>
                 <property name="icon">
                  <iconset theme="folder-open-line"/>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>16</width>
+                  <height>16</height>
+                 </size>
                 </property>
                </widget>
               </item>
@@ -3010,141 +3159,170 @@
          </widget>
          <widget class="QWidget" name="DDTab">
           <attribute name="title">
-           <string>64DD</string>
+           <string>Kaillera</string>
           </attribute>
-          <layout class="QVBoxLayout" name="verticalLayout_6">
+         <layout class="QVBoxLayout" name="verticalLayout_6">
            <item>
-            <widget class="QGroupBox" name="groupBox_32">
+            <widget class="QGroupBox" name="kailleraNetworkingGroupBox">
              <property name="title">
-              <string>Japanese Retail 64DD IPL ROM</string>
+              <string>Networking</string>
              </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_88">
+             <layout class="QHBoxLayout" name="kailleraNetworkingLayout">
               <item>
-               <widget class="QLineEdit" name="japaneseIPLRomLineEdit">
-                <property name="readOnly">
-                 <bool>true</bool>
+               <widget class="QLabel" name="kailleraPortLabel">
+                <property name="text">
+                 <string>P2P host port</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="changeJapaneseIPLRomPathButton">
-                <property name="text">
-                 <string>Change</string>
+               <widget class="QSpinBox" name="kailleraPortSpinBox">
+                <property name="minimum">
+                 <number>1</number>
                 </property>
-                <property name="icon">
-                 <iconset theme="folder-open-line"/>
+                <property name="maximum">
+                 <number>65535</number>
+                </property>
+                <property name="value">
+                 <number>27886</number>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="clearJapaneseIPLRomPathButton">
-                <property name="text">
-                 <string/>
+               <spacer name="horizontalSpacer_kailleraPort">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
-                <property name="icon">
-                 <iconset theme="delete-bin-line"/>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
                 </property>
-               </widget>
+               </spacer>
               </item>
              </layout>
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_33">
+            <widget class="QGroupBox" name="kailleraSettingsGroupBox">
              <property name="title">
-              <string>American Retail 64DD IPL ROM</string>
+              <string>Recording</string>
              </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_90">
+             <layout class="QVBoxLayout" name="kailleraSettingsLayout">
               <item>
-               <widget class="QLineEdit" name="americanIPLRomLineEdit">
-                <property name="readOnly">
-                 <bool>true</bool>
+               <widget class="QCheckBox" name="kailleraRecordByDefaultCheckBox">
+                <property name="text">
+                 <string>Enable recording by default</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="changeAmericanIPLRomPathButton">
+               <widget class="QLabel" name="kailleraRecordsFolderLabel">
                 <property name="text">
-                 <string>Change</string>
-                </property>
-                <property name="icon">
-                 <iconset theme="folder-open-line"/>
+                 <string>Records folder</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="clearAmericanIPLRomPathButton">
+               <layout class="QHBoxLayout" name="kailleraRecordsFolderLayout">
+                <item>
+                 <widget class="QLineEdit" name="kailleraRecordsDirectoryLineEdit">
+                  <property name="readOnly">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="changeKailleraRecordsDirectoryButton">
+                  <property name="text">
+                   <string>Change</string>
+                  </property>
+                  <property name="icon">
+                   <iconset theme="folder-open-line"/>
+                  </property>
+                  <property name="iconSize">
+                   <size>
+                    <width>16</width>
+                    <height>16</height>
+                   </size>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="kailleraRecordingCapEnabledCheckBox">
                 <property name="text">
-                 <string/>
-                </property>
-                <property name="icon">
-                 <iconset theme="delete-bin-line"/>
+                 <string>Disable default recording above folder size cap</string>
                 </property>
                </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="kailleraRecordingCapLayout">
+                <item>
+                 <widget class="QLabel" name="kailleraRecordingCapLabel">
+                  <property name="text">
+                   <string>Cap size</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="kailleraRecordingCapMBSpinBox">
+                  <property name="minimum">
+                   <number>1</number>
+                  </property>
+                  <property name="maximum">
+                   <number>1048576</number>
+                  </property>
+                  <property name="value">
+                   <number>1024</number>
+                  </property>
+                  <property name="suffix">
+                   <string> MB</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_16">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
               </item>
              </layout>
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_34">
+            <widget class="QGroupBox" name="kailleraNotificationsGroupBox">
              <property name="title">
-              <string>Development 64DD IPL ROM</string>
+              <string>Notifications</string>
              </property>
-             <layout class="QHBoxLayout" name="horizontalLayout_91">
+             <layout class="QVBoxLayout" name="kailleraNotificationsLayout">
               <item>
-               <widget class="QLineEdit" name="developmentIPLRomLineEdit">
-                <property name="readOnly">
-                 <bool>true</bool>
+               <widget class="QCheckBox" name="kailleraFlashOnJoinCheckBox">
+                <property name="text">
+                 <string>Flash taskbar on player join</string>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="changeDevelopmentIPLRomPathButton">
+               <widget class="QCheckBox" name="kailleraBeepOnJoinCheckBox">
                 <property name="text">
-                 <string>Change</string>
-                </property>
-                <property name="icon">
-                 <iconset theme="folder-open-line"/>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QPushButton" name="clearDevelopmentIPLRomPathButton">
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="icon">
-                 <iconset theme="delete-bin-line"/>
+                 <string>Beep on player join</string>
                 </property>
                </widget>
               </item>
              </layout>
             </widget>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <widget class="QLabel" name="label_3">
-               <property name="text">
-                <string>Disk save type</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QComboBox" name="diskSaveTypeComboBox">
-               <item>
-                <property name="text">
-                 <string>Full Disk Copy</string>
-                </property>
-               </item>
-               <item>
-                <property name="text">
-                 <string>RAM Area Only</string>
-                </property>
-               </item>
-              </widget>
-             </item>
-            </layout>
            </item>
            <item>
             <spacer name="verticalSpacer_2">
@@ -3154,52 +3332,10 @@
              <property name="sizeHint" stdset="0">
               <size>
                <width>20</width>
-               <height>248</height>
+               <height>40</height>
               </size>
              </property>
             </spacer>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="emulationInfoLayout_3">
-             <item>
-              <widget class="QLabel" name="infoIconLabel_4">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="pixmap">
-                <pixmap>:/newPrefix/Resource/Info.ico</pixmap>
-               </property>
-               <property name="wordWrap">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label_59">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="midLineWidth">
-                <number>1</number>
-               </property>
-               <property name="text">
-                <string>Changes will be applied on next emulation run</string>
-               </property>
-               <property name="textFormat">
-                <enum>Qt::TextFormat::PlainText</enum>
-               </property>
-              </widget>
-             </item>
-            </layout>
            </item>
           </layout>
          </widget>

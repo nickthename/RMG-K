@@ -24,6 +24,7 @@ using namespace UserInterface::Widget;
 #include "common.hpp"
 
 #include <SDL3/SDL.h>
+#include <unordered_map>
 
 #include <RMG-Core/RomSettings.hpp>
 #include <RMG-Core/RomHeader.hpp>
@@ -45,7 +46,6 @@ private:
     OptionsDialogSettings optionsDialogSettings;
 
     MappingButton* currentButton = nullptr;
-    bool addMappingToButton      = false;
 
     QList<QString> profiles;
     QList<QString> removedProfiles;
@@ -99,6 +99,10 @@ private:
     void enableAllChildren();
 
     void removeDuplicates(MappingButton* button);
+    void updateAxisReadout();
+
+    // Local keyboard state tracking (SDL_GetKeyboardState doesn't work with peep'd events)
+    std::unordered_map<int, bool> m_KeyboardState;
 
     QString getCurrentSettingsSection();
 

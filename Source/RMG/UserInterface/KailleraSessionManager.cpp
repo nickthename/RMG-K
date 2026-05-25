@@ -8,15 +8,16 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 #include "KailleraSessionManager.hpp"
+#include "KailleraUIBridge.hpp"
+#ifdef NETPLAY
+#include "Dialog/Kaillera/KailleraNetplayDialog.hpp"
+#endif
 
 #include <RMG-Core/Kaillera.hpp>
 
 #include <QMetaObject>
 #include <QWidget>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
+#include <QEventLoop>
 
 KailleraSessionManager::KailleraSessionManager(QWidget* parent)
     : QObject(parent)
@@ -25,6 +26,11 @@ KailleraSessionManager::KailleraSessionManager(QWidget* parent)
     , m_totalPlayers(0)
     , m_parentWidget(parent)
 {
+#ifdef NETPLAY
+    // Register n02 UI callbacks (detailed server browser / P2P UI events)
+    KailleraUIBridge::instance().registerCallbacks();
+#endif
+
     // Register Kaillera callbacks
     // These callbacks are invoked from Kaillera's internal thread
     // We use QMetaObject::invokeMethod with Qt::QueuedConnection to safely
@@ -67,22 +73,33 @@ KailleraSessionManager::~KailleraSessionManager()
     {
         endGame();
     }
+
+#ifdef NETPLAY
+    // Unregister n02 UI callbacks
+    KailleraUIBridge::instance().unregisterCallbacks();
+#endif
 }
 
 bool KailleraSessionManager::showServerDialog()
 {
-#ifdef _WIN32
-    // Get native window handle from Qt widget
-    HWND hwnd = nullptr;
-    if (m_parentWidget)
-    {
-        hwnd = (HWND)m_parentWidget->winId();
-    }
+#ifdef NETPLAY
+    // Pass nullptr as parent so the dialog is a truly independent top-level
+    // window. On Linux, child dialogs always stay above their parent in the
+    // window manager stacking order, preventing the emulator from being
+    // brought to the front or fullscreened.
+    KailleraNetplayDialog dialog(nullptr);
+    dialog.setWindowModality(Qt::NonModal);
+    QObject::connect(&dialog, &KailleraNetplayDialog::rollbackSessionPreparing,
+                     this, &KailleraSessionManager::rollbackSessionPreparing);
+    QObject::connect(&dialog, &KailleraNetplayDialog::rollbackSessionRequested,
+                     this, &KailleraSessionManager::rollbackSessionRequested);
+    dialog.show();
 
-    // Show Kaillera's built-in server selection dialog
-    // This is a blocking call - user will select server, create/join game
-    // When they start a game, gameCallback will be invoked
-    return CoreShowKailleraServerDialog(hwnd);
+    QEventLoop loop;
+    QObject::connect(&dialog, &QDialog::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    return (dialog.result() == QDialog::Accepted);
 #else
     // Kaillera is Windows-only
     return false;
@@ -156,31 +173,9 @@ void KailleraSessionManager::handleChatReceived(QString nick, QString text)
 
 void KailleraSessionManager::handlePlayerDropped(QString nick, int playerNum)
 {
+    // Just forward the signal — all drop/stop logic is handled by
+    // KailleraServerBrowserDialog::onPlayerDropped() via the UIBridge path.
     emit playerDropped(nick, playerNum);
-
-    if (!m_gameActive)
-    {
-        return;
-    }
-
-    // Player 1 (host) dropping ends the game for everyone
-    if (playerNum == 1)
-    {
-        m_gameActive = false;
-        emit gameEnded();
-        return;
-    }
-
-    // Players 2-4 dropping only ends the game for themselves
-    // If it's the local player who dropped, end our game
-    if (playerNum == m_playerNumber)
-    {
-        m_gameActive = false;
-        emit gameEnded();
-        return;
-    }
-
-    // Remote non-host player dropped - game continues without them
     // Just update total players count
     if (m_totalPlayers > 1)
     {

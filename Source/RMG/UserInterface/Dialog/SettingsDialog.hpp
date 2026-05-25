@@ -15,6 +15,7 @@
 
 #include <QStandardItemModel>
 #include <QHBoxLayout>
+#include <QCheckBox>
 #include <QStringList>
 #include <QTreeWidget>
 #include <QDialog>
@@ -67,6 +68,10 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
 
     QColor currentBackgroundColor;
     QColor currentTextColor;
+    QCheckBox* rollbackVerboseStatsCheckBox = nullptr;
+    QCheckBox* rollbackEnableLocalTestingCheckBox = nullptr;
+    QCheckBox* rollbackVerbosePifInputLoggingCheckBox = nullptr;
+    QCheckBox* rollbackVerboseGlideInputLoggingCheckBox = nullptr;
 
     std::vector<CorePlugin> pluginList;
 
@@ -90,6 +95,7 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     void loadInterfaceLogSettings(void);
     void loadInterfaceOSDSettings(void);
     void loadInterfaceNetplaySettings(void);
+    void loadRollbackSettings(void);
 
     void loadDefaultCoreSettings(void);
     void loadDefaultGameSettings(void);
@@ -105,6 +111,7 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     void loadDefaultInterfaceLogSettings(void);
     void loadDefaultInterfaceOSDSettings(void);
     void loadDefaultInterfaceNetplaySettings(void);
+    void loadDefaultRollbackSettings(void);
 
     void saveSettings(void);
     void saveCoreSettings(void);
@@ -121,14 +128,20 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     void saveInterfaceLogSettings(void);
     void saveInterfaceOSDSettings(void);
     void saveInterfaceNetplaySettings(void);
+    void saveRollbackSettings(void);
 
     void commonHotkeySettings(SettingsDialogAction);
     void commonPluginSettings(SettingsDialogAction);
 
     QString getInputPluginDisplayName(const QString& fileName, const QString& originalName);
 
+#ifdef _WIN32
+    void populateExclusiveFullscreenModes(void);
+#endif
     void setIconsForEmulationInfoText(void);
     void hideEmulationInfoText(void);
+    void updateKailleraRecordingCapControls(void);
+    void updateOSDSettingsEnabledState(void);
 
     void chooseDirectory(QLineEdit *, QString caption);
     void chooseFile(QLineEdit *, QString caption, QString filter = "", QStringList md5List = {});
@@ -146,14 +159,9 @@ class SettingsDialog : public QDialog, private Ui::SettingsDialog
     void on_changeScreenShotDirButton_clicked(void);
     void on_changeSaveStateDirButton_clicked(void);
     void on_changeSaveSramDirButton_clicked(void);
-
-    void on_changeJapaneseIPLRomPathButton_clicked(void);
-    void on_changeAmericanIPLRomPathButton_clicked(void);
-    void on_changeDevelopmentIPLRomPathButton_clicked(void);
-
-    void on_clearJapaneseIPLRomPathButton_clicked(void);
-    void on_clearAmericanIPLRomPathButton_clicked(void);
-    void on_clearDevelopmentIPLRomPathButton_clicked(void);
+    void on_changeKailleraRecordsDirectoryButton_clicked(void);
+    void on_kailleraRecordByDefaultCheckBox_toggled(bool checked);
+    void on_kailleraRecordingCapEnabledCheckBox_toggled(bool checked);
 
     void on_changeBackgroundColorButton_clicked(void);
     void on_changeTextColorButton_clicked(void);

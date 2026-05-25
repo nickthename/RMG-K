@@ -137,22 +137,20 @@ jobs:
             mingw-w64-ucrt-x86_64-speexdsp
             mingw-w64-ucrt-x86_64-libsamplerate
             mingw-w64-ucrt-x86_64-nasm
-            mingw-w64-ucrt-x86_64-minizip
             mingw-w64-ucrt-x86_64-vulkan-headers
             git
+      - name: Install minizip 1.3.1
+        shell: msys2 {0}
+        run: |
+          pacman -U --noconfirm \
+            "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-minizip-1.3.1-1-any.pkg.tar.zst"
       - name: Prepare Environment
         run: |
           $env:revision = git describe --tags --always
           echo "GIT_REVISION=$env:revision" >> $env:GITHUB_ENV
         shell: pwsh
-      - name: Download Kaillera Client
-        run: |
-          gh release download --repo Jay-Day/n02-rmg --pattern "*.zip" --dir .
-          Expand-Archive -Path *.zip -DestinationPath Data/ -Force
-          Remove-Item *.zip
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # n02 Kaillera client is now compiled as a static library (Source/n02/)
+      # No need to download kailleraclient.dll
       - name: Build RMG (Portable)
         run: |
           export src_dir="$(pwd)"

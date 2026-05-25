@@ -8,29 +8,54 @@ option(UPDATER          "Enables updater" ${WIN32})
 option(APPIMAGE_UPDATER "Enables AppImage updater" OFF)
 option(KCA_DRAG_DROP    "Enables drag and drop using KCoreAddons" OFF) # https://bugreports.qt.io/browse/QTBUG-91357
 option(NETPLAY          "Enables netplay" ON)
-option(VRU              "Enables VRU support in RMG-Input" ON)
 option(USE_CCACHE       "Enables usage of ccache when ccache has been found" ON)
 option(NO_ASM           "Disables the usage of assembly in the mupen64plus-core" OFF)
 option(USE_ANGRYLION    "Enables building angrylion-rdp-plus which uses a non-GPL compliant license" OFF)
+option(INSTALL_CHEATS   "Installs bundled cheat files" ON)
+set(KAILLERA_APP_VERSION_OVERRIDE "" CACHE STRING "Override Kaillera app version string advertised by RMG-K (dev/testing)")
 
 project(RMG)
 
 find_package(Git)
 if (GIT_FOUND)
+    # Check if the current commit has an exact tag match
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} describe --tags --always
+        COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        RESULT_VARIABLE GIT_RESULT
-        OUTPUT_VARIABLE GIT_VERSION
+        RESULT_VARIABLE GIT_TAG_RESULT
+        OUTPUT_VARIABLE GIT_TAG_VERSION
         ERROR_QUIET
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
+    if (${GIT_TAG_RESULT} EQUAL 0)
+        # We're on a tagged commit, use the tag
+        set(GIT_VERSION "${GIT_TAG_VERSION}")
+        set(GIT_RESULT 0)
+    else()
+        # No exact tag, use vdev-<commit_count>
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-list --count HEAD
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            RESULT_VARIABLE GIT_RESULT
+            OUTPUT_VARIABLE GIT_COMMIT_COUNT
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if (${GIT_RESULT} EQUAL 0)
+            set(GIT_VERSION "vdev-${GIT_COMMIT_COUNT}")
+        endif()
+    endif()
 endif(GIT_FOUND)
 if (NOT GIT_FOUND OR NOT ${GIT_RESULT} EQUAL 0)
     if (NOT ${GIT_RESULT} EQUAL 0)
         message(WARNING "git failed to retrieve the current revision, falling back to VERSION file!")
     endif()
     file(STRINGS "VERSION" GIT_VERSION)
+endif()
+
+if (KAILLERA_APP_VERSION_OVERRIDE)
+    message(STATUS "Overriding app version for dev testing: ${KAILLERA_APP_VERSION_OVERRIDE}")
+    set(GIT_VERSION "${KAILLERA_APP_VERSION_OVERRIDE}")
 endif()
 
 if (USE_CCACHE)
@@ -93,13 +118,15 @@ endif()
 
 add_subdirectory(Source/3rdParty)
 add_subdirectory(Source/3rdParty/lzma)
-if (VRU)
-    add_subdirectory(Source/3rdParty/vosk-api)
-endif(VRU)
-
+if (NETPLAY)
+    add_subdirectory(Source/n02)
+endif()
 add_subdirectory(Source/RMG-Core)
 add_subdirectory(Source/RMG)
 add_subdirectory(Source/RMG-Audio)
+if (WIN32 AND NETPLAY)
+    add_subdirectory(Source/RMG-Audio-Capture)
+endif()
 add_subdirectory(Source/RMG-Input)
 add_subdirectory(Source/RMG-Input-GCA)
 install(TARGETS RMG-Core
@@ -111,6 +138,11 @@ install(TARGETS RMG
 install(TARGETS RMG-Audio
     DESTINATION ${PLUGIN_INSTALL_PATH}/Audio
 )
+if (WIN32 AND NETPLAY)
+    install(TARGETS RMG-Audio-Capture
+        DESTINATION ${PLUGIN_INSTALL_PATH}/Audio
+    )
+endif()
 install(TARGETS RMG-Input RMG-Input-GCA
     DESTINATION ${PLUGIN_INSTALL_PATH}/Input
 )
@@ -122,9 +154,7 @@ if (WIN32)
         COMMAND bash "${CMAKE_SOURCE_DIR}/Source/Script/BundleDependencies.sh" "${CMAKE_SOURCE_DIR}/Bin/${CMAKE_BUILD_TYPE}/RMG-K.exe" "${CMAKE_SOURCE_DIR}/Bin/${CMAKE_BUILD_TYPE}"
 	)
 
-    install(FILES ${CMAKE_SOURCE_DIR}/Data/kailleraclient.dll
-        DESTINATION ${RMG_INSTALL_PATH}
-    )
+    # kailleraclient.dll no longer needed - n02 is statically linked
 endif(WIN32)
 
 set(LIB_PERMISSIONS OWNER_READ OWNER_EXECUTE OWNER_WRITE
@@ -138,23 +168,16 @@ install(FILES ${MUPEN64PLUSCORE_LIB}
 install(FILES ${MUPEN64PLUSCORE_INI} Data/font.ttf
     DESTINATION ${DATA_INSTALL_PATH}
 )
-if (VRU)
-    install(FILES ${VOSK_API_LIBRARY}
-        DESTINATION ${LIB_INSTALL_PATH}
-        PERMISSIONS ${LIB_PERMISSIONS}
-    )
-    install(FILES ${VOSK_API_MODEL}
-        DESTINATION ${DATA_INSTALL_PATH}
-    )
-endif(VRU)
 install(FILES ${SDL_GAMECONTROLLERDB} ${CMAKE_SOURCE_DIR}/Data/InputProfileDB.json
     DESTINATION ${DATA_INSTALL_PATH}
 )
-file(GLOB GENERATED_CHEAT_FILES ${CMAKE_SOURCE_DIR}/Data/Cheats/Generated/*.cht)
-file(GLOB CUSTOM_CHEAT_FILES ${CMAKE_SOURCE_DIR}/Data/Cheats/Custom/*.cht)
-install(FILES ${GENERATED_CHEAT_FILES} ${CUSTOM_CHEAT_FILES}
-    DESTINATION ${DATA_INSTALL_PATH}/Cheats
-)
+if (INSTALL_CHEATS)
+    file(GLOB GENERATED_CHEAT_FILES ${CMAKE_SOURCE_DIR}/Data/Cheats/Generated/*.cht)
+    file(GLOB CUSTOM_CHEAT_FILES ${CMAKE_SOURCE_DIR}/Data/Cheats/Custom/*.cht)
+    install(FILES ${GENERATED_CHEAT_FILES} ${CUSTOM_CHEAT_FILES}
+        DESTINATION ${DATA_INSTALL_PATH}/Cheats
+    )
+endif(INSTALL_CHEATS)
 install(FILES ${MUPEN64PLUS_PLUGIN_RSP_CXD4}
     DESTINATION ${PLUGIN_INSTALL_PATH}/RSP
     PERMISSIONS ${LIB_PERMISSIONS}

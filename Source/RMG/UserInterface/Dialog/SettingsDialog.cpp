@@ -16,11 +16,16 @@
 #include <QRegularExpressionValidator>
 #include <QCryptographicHash>
 #include <QRegularExpression>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGroupBox>
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QDirIterator>
 #include <QLabel>
 #include <QDir>
+#include <QIcon>
+#include <QList>
 
 #include <RMG-Core/CachedRomHeaderAndSettings.hpp>
 #include <RMG-Core/Directories.hpp>
@@ -28,9 +33,154 @@
 #include <RMG-Core/Settings.hpp>
 #include <RMG-Core/Error.hpp>
 #include <RMG-Core/Rom.hpp>
+#include <RMG-Core/Kaillera.hpp>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <set>
+#endif
 
 using namespace UserInterface::Dialog;
 using namespace Utilities;
+
+static QString getDisplayDirectoryPath(const QString& directoryPath)
+{
+    if (directoryPath.isEmpty())
+    {
+        return QString();
+    }
+
+    QString displayPath = directoryPath;
+    if (!QDir(displayPath).isAbsolute())
+    {
+        displayPath = QDir::current().absoluteFilePath(displayPath);
+    }
+
+    return QDir::toNativeSeparators(displayPath);
+}
+
+static void setupDirectoryChangeButtonIcon(QPushButton* button)
+{
+    if (button == nullptr)
+    {
+        return;
+    }
+
+    // Match the icon sizing approach used by input-mapping icon buttons.
+    button->setIcon(QIcon::fromTheme("folder-open-line"));
+    button->setIconSize(QSize(20, 16));
+}
+
+struct ThemeOption
+{
+    QString label;
+    QString value;
+    bool legacy;
+};
+
+static QList<ThemeOption> collectAvailableThemeOptions()
+{
+    QList<ThemeOption> options;
+
+    auto addOption = [&options](const QString& label, const QString& value, bool legacy)
+    {
+        for (const ThemeOption& existing : options)
+        {
+            if (existing.value == value)
+            {
+                return;
+            }
+        }
+
+        options.append({label, value, legacy});
+    };
+
+    addOption("Modern", "Modern", false);
+    addOption("Fusion", "Fusion", false);
+    addOption("Fusion Dark", "Fusion Dark", false);
+    addOption("Native", "Native", true);
+    addOption("Fusion Warm", "Fusion Warm", true);
+
+#ifdef _WIN32
+    addOption("Windows Vista", "Windows Vista", true);
+#endif
+
+    QString directory = QString::fromStdString(CoreGetSharedDataDirectory().string());
+    directory += CORE_DIR_SEPERATOR_STR;
+    directory += "Styles";
+    directory += CORE_DIR_SEPERATOR_STR;
+
+    const QStringList filter{"*.qss"};
+    QDirIterator stylesDirectoryIter(directory, filter, QDir::Files, QDirIterator::NoIteratorFlags);
+    while (stylesDirectoryIter.hasNext())
+    {
+        QFileInfo fileInfo(stylesDirectoryIter.next());
+        const QString value = fileInfo.fileName();
+        const QString label = fileInfo.completeBaseName().isEmpty() ? value : fileInfo.completeBaseName();
+        addOption(label, value, false);
+    }
+
+    return options;
+}
+
+static bool isLegacyThemeValue(const QList<ThemeOption>& options, const QString& themeValue)
+{
+    for (const ThemeOption& option : options)
+    {
+        if (option.value == themeValue)
+        {
+            return option.legacy;
+        }
+    }
+
+    return false;
+}
+
+static QString selectedThemeValue(const QComboBox* comboBox)
+{
+    if (comboBox == nullptr)
+    {
+        return QString();
+    }
+
+    const QVariant data = comboBox->currentData();
+    if (data.isValid() && !data.toString().isEmpty())
+    {
+        return data.toString();
+    }
+
+    return comboBox->currentText();
+}
+
+static void populateThemeCombo(QComboBox* comboBox, const QList<ThemeOption>& options, bool showLegacy, const QString& selectedValue)
+{
+    if (comboBox == nullptr)
+    {
+        return;
+    }
+
+    comboBox->clear();
+
+    int selectedIndex = -1;
+    for (const ThemeOption& option : options)
+    {
+        if (!showLegacy && option.legacy)
+        {
+            continue;
+        }
+
+        comboBox->addItem(option.label, option.value);
+        if (option.value == selectedValue)
+        {
+            selectedIndex = comboBox->count() - 1;
+        }
+    }
+
+    if (selectedIndex >= 0)
+    {
+        comboBox->setCurrentIndex(selectedIndex);
+    }
+}
 
 //
 // Local Enums
@@ -52,7 +202,8 @@ enum class SettingsDialogTab
     Plugin     = 11,
     Directory  = 12,
     N64DD      = 13,
-    Invalid    = 14
+    Rollback   = 14,
+    Invalid    = 15
 };
 
 
@@ -63,6 +214,35 @@ enum class SettingsDialogTab
 SettingsDialog::SettingsDialog(QWidget *parent, QString file) : QDialog(parent)
 {
     this->setupUi(this);
+
+    connect(this->showLegacyThemesCheckBox, &QCheckBox::toggled, this, [this](bool checked)
+    {
+        const QString currentTheme = selectedThemeValue(this->themeComboBox);
+        populateThemeCombo(this->themeComboBox, collectAvailableThemeOptions(), checked, currentTheme);
+    });
+    connect(this->osdEnabledCheckBox, &QCheckBox::toggled, this, &SettingsDialog::updateOSDSettingsEnabledState);
+    connect(this->osdChatEnabledCheckBox, &QCheckBox::toggled, this, &SettingsDialog::updateOSDSettingsEnabledState);
+
+    setupDirectoryChangeButtonIcon(this->changeScreenShotDirButton);
+    setupDirectoryChangeButtonIcon(this->changeSaveStateDirButton);
+    setupDirectoryChangeButtonIcon(this->changeSaveSramDirButton);
+    setupDirectoryChangeButtonIcon(this->changeKailleraRecordsDirectoryButton);
+
+    QWidget* rollbackTab = new QWidget(this->tabWidget);
+    QVBoxLayout* rollbackLayout = new QVBoxLayout(rollbackTab);
+    QGroupBox* rollbackLoggingGroupBox = new QGroupBox("Logging", rollbackTab);
+    QVBoxLayout* rollbackLoggingLayout = new QVBoxLayout(rollbackLoggingGroupBox);
+    this->rollbackEnableLocalTestingCheckBox = new QCheckBox("Use rollback engine for local play", rollbackTab);
+    this->rollbackVerboseStatsCheckBox = new QCheckBox("Enable verbose rollback stats logging", rollbackLoggingGroupBox);
+    this->rollbackVerbosePifInputLoggingCheckBox = new QCheckBox("Enable verbose PIF input logging", rollbackLoggingGroupBox);
+    this->rollbackVerboseGlideInputLoggingCheckBox = new QCheckBox("Enable verbose Glide input logging", rollbackLoggingGroupBox);
+    rollbackLayout->addWidget(this->rollbackEnableLocalTestingCheckBox);
+    rollbackLoggingLayout->addWidget(this->rollbackVerboseStatsCheckBox);
+    rollbackLoggingLayout->addWidget(this->rollbackVerbosePifInputLoggingCheckBox);
+    rollbackLoggingLayout->addWidget(this->rollbackVerboseGlideInputLoggingCheckBox);
+    rollbackLayout->addWidget(rollbackLoggingGroupBox);
+    rollbackLayout->addStretch();
+    this->tabWidget->addTab(rollbackTab, "Rollback");
 
     this->setIconsForEmulationInfoText();
 
@@ -128,11 +308,191 @@ SettingsDialog::SettingsDialog(QWidget *parent, QString file) : QDialog(parent)
 #ifndef NETPLAY
     this->autoStartNetplayOnStartupCheckBox->setHidden(true);
 #endif // !NETPLAY
+
+#ifdef _WIN32
+    connect(this->exclusiveFullscreenCheckBox, &QCheckBox::toggled, this, [this](bool checked)
+    {
+        this->betaFullscreenBackendCheckBox->setEnabled(checked);
+        this->exclusiveMonitorComboBox->setEnabled(checked);
+        this->exclusiveResolutionComboBox->setEnabled(checked);
+        this->exclusiveRefreshRateComboBox->setEnabled(checked);
+    });
+    connect(this->betaFullscreenBackendCheckBox, &QCheckBox::toggled, this, [this](bool checked)
+    {
+        if (checked)
+        {
+            this->automaticFullscreenCheckbox->setChecked(true);
+        }
+    });
+    connect(this->exclusiveMonitorComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
+    {
+        this->populateExclusiveFullscreenModes();
+    });
+    connect(this->exclusiveResolutionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
+    {
+        this->populateExclusiveFullscreenModes();
+    });
+#else
+    this->exclusiveFullscreenGroupBox->setVisible(false);
+#endif
 }
 
 SettingsDialog::~SettingsDialog(void)
 {
 }
+
+#ifdef _WIN32
+void SettingsDialog::populateExclusiveFullscreenModes(void)
+{
+    // save current selections before repopulating
+    QString savedMonitor = this->exclusiveMonitorComboBox->currentData().toString();
+    QString savedResolution = this->exclusiveResolutionComboBox->currentData().toString();
+    int savedRefreshRate = this->exclusiveRefreshRateComboBox->currentData().toInt();
+
+    // block signals during population to avoid recursive calls
+    bool monBlocked = this->exclusiveMonitorComboBox->blockSignals(true);
+    bool resBlocked = this->exclusiveResolutionComboBox->blockSignals(true);
+    bool rateBlocked = this->exclusiveRefreshRateComboBox->blockSignals(true);
+
+    // populate monitors (only do full enumeration once)
+    if (!this->exclusiveMonitorComboBox->property("populated").toBool())
+    {
+        this->exclusiveMonitorComboBox->clear();
+        this->exclusiveMonitorComboBox->addItem("Primary Monitor", "");
+        DISPLAY_DEVICEW displayDevice = {};
+        displayDevice.cb = sizeof(displayDevice);
+        for (DWORD i = 0; EnumDisplayDevicesW(NULL, i, &displayDevice, 0); i++)
+        {
+            if (!(displayDevice.StateFlags & DISPLAY_DEVICE_ACTIVE))
+            {
+                continue;
+            }
+            // get friendly name from child device
+            DISPLAY_DEVICEW monitor = {};
+            monitor.cb = sizeof(monitor);
+            // extract display number from device name (e.g. "\\\\.\\DISPLAY1" -> "Display 1")
+            QString devName = QString::fromWCharArray(displayDevice.DeviceName);
+            QString displayNum = devName;
+            int displayIdx = devName.lastIndexOf("DISPLAY");
+            if (displayIdx >= 0)
+            {
+                displayNum = "Display " + devName.mid(displayIdx + 7);
+            }
+            QString label;
+            if (EnumDisplayDevicesW(displayDevice.DeviceName, 0, &monitor, 0))
+            {
+                label = QString("%1 - %2").arg(QString::fromWCharArray(monitor.DeviceString), displayNum);
+            }
+            else
+            {
+                label = displayNum;
+            }
+            this->exclusiveMonitorComboBox->addItem(label, QString::fromWCharArray(displayDevice.DeviceName));
+        }
+
+        // restore monitor selection
+        int monIdx = this->exclusiveMonitorComboBox->findData(savedMonitor);
+        if (monIdx >= 0)
+        {
+            this->exclusiveMonitorComboBox->setCurrentIndex(monIdx);
+        }
+        this->exclusiveMonitorComboBox->setProperty("populated", true);
+    }
+
+    // get selected monitor device name for enumeration
+    QString selectedMonitor = this->exclusiveMonitorComboBox->currentData().toString();
+    LPCWSTR deviceName = nullptr;
+    std::wstring deviceNameStr;
+    if (!selectedMonitor.isEmpty())
+    {
+        deviceNameStr = selectedMonitor.toStdWString();
+        deviceName = deviceNameStr.c_str();
+    }
+
+    // enumerate display modes for selected monitor
+    struct Resolution
+    {
+        DWORD width;
+        DWORD height;
+        bool operator<(const Resolution& o) const
+        {
+            if (width != o.width) return width < o.width;
+            return height < o.height;
+        }
+    };
+
+    std::set<Resolution> resolutions;
+    std::set<int> refreshRates;
+
+    DEVMODEW devmode = {};
+    devmode.dmSize = sizeof(devmode);
+    for (DWORD i = 0; EnumDisplaySettingsW(deviceName, i, &devmode); i++)
+    {
+        if (devmode.dmBitsPerPel != 32)
+        {
+            continue;
+        }
+        resolutions.insert({devmode.dmPelsWidth, devmode.dmPelsHeight});
+    }
+
+    // populate resolutions
+    this->exclusiveResolutionComboBox->clear();
+    this->exclusiveResolutionComboBox->addItem("Desktop Default", "");
+    for (const auto& res : resolutions)
+    {
+        QString text = QString("%1x%2").arg(res.width).arg(res.height);
+        this->exclusiveResolutionComboBox->addItem(text, text);
+    }
+
+    // restore resolution selection
+    int resIdx = this->exclusiveResolutionComboBox->findData(savedResolution);
+    if (resIdx >= 0)
+    {
+        this->exclusiveResolutionComboBox->setCurrentIndex(resIdx);
+    }
+
+    // enumerate refresh rates for selected resolution
+    QString selectedRes = this->exclusiveResolutionComboBox->currentData().toString();
+    devmode = {};
+    devmode.dmSize = sizeof(devmode);
+    for (DWORD i = 0; EnumDisplaySettingsW(deviceName, i, &devmode); i++)
+    {
+        if (devmode.dmBitsPerPel != 32)
+        {
+            continue;
+        }
+        if (!selectedRes.isEmpty())
+        {
+            QString modeRes = QString("%1x%2").arg(devmode.dmPelsWidth).arg(devmode.dmPelsHeight);
+            if (modeRes != selectedRes)
+            {
+                continue;
+            }
+        }
+        refreshRates.insert(static_cast<int>(devmode.dmDisplayFrequency));
+    }
+
+    // populate refresh rates
+    this->exclusiveRefreshRateComboBox->clear();
+    this->exclusiveRefreshRateComboBox->addItem("Desktop Default", 0);
+    for (int rate : refreshRates)
+    {
+        QString text = QString("%1 Hz").arg(rate);
+        this->exclusiveRefreshRateComboBox->addItem(text, rate);
+    }
+
+    // restore refresh rate selection
+    int rateIdx = this->exclusiveRefreshRateComboBox->findData(savedRefreshRate);
+    if (rateIdx >= 0)
+    {
+        this->exclusiveRefreshRateComboBox->setCurrentIndex(rateIdx);
+    }
+
+    this->exclusiveMonitorComboBox->blockSignals(monBlocked);
+    this->exclusiveResolutionComboBox->blockSignals(resBlocked);
+    this->exclusiveRefreshRateComboBox->blockSignals(rateBlocked);
+}
+#endif // _WIN32
 
 void SettingsDialog::ShowGameTab(void)
 {
@@ -224,6 +584,9 @@ void SettingsDialog::restoreDefaults(int stackedWidgetIndex)
     case SettingsDialogTab::N64DD:
         this->loadDefault64DDSettings();
         break;
+    case SettingsDialogTab::Rollback:
+        this->loadDefaultRollbackSettings();
+        break;
     }
 }
 
@@ -280,6 +643,9 @@ void SettingsDialog::loadSettings(int stackedWidgetIndex)
         break;
     case SettingsDialogTab::N64DD:
         this->load64DDSettings();
+        break;
+    case SettingsDialogTab::Rollback:
+        this->loadRollbackSettings();
         break;
     }
 }
@@ -435,15 +801,39 @@ void SettingsDialog::loadDirectorySettings(void)
 
 void SettingsDialog::load64DDSettings(void)
 {
-    const std::string japaneseIPLRom = CoreSettingsGetStringValue(SettingsID::Core_64DD_JapaneseIPL);
-    const std::string americanIPlRom = CoreSettingsGetStringValue(SettingsID::Core_64DD_AmericanIPL);
-    const std::string developmentIPLRom = CoreSettingsGetStringValue(SettingsID::Core_64DD_DevelopmentIPL);
-    const int saveDiskFormat = CoreSettingsGetIntValue(SettingsID::Core_64DD_SaveDiskFormat);
+    int kailleraPort = CoreSettingsGetIntValue(SettingsID::Kaillera_Port);
+    if (kailleraPort < 1 || kailleraPort > 65535)
+    {
+        kailleraPort = 27886;
+    }
 
-    this->japaneseIPLRomLineEdit->setText(QString::fromStdString(japaneseIPLRom));
-    this->americanIPLRomLineEdit->setText(QString::fromStdString(americanIPlRom));
-    this->developmentIPLRomLineEdit->setText(QString::fromStdString(developmentIPLRom));
-    this->diskSaveTypeComboBox->setCurrentIndex(saveDiskFormat);
+    QString recordsDirectoryRaw = QString::fromStdString(
+        CoreSettingsGetStringValue(SettingsID::Kaillera_RecordsDirectory));
+    if (recordsDirectoryRaw.isEmpty())
+    {
+        recordsDirectoryRaw = "records";
+    }
+
+    int recordingCapMB = CoreSettingsGetIntValue(SettingsID::Kaillera_RecordingCapMB);
+    if (recordingCapMB < 1)
+    {
+        recordingCapMB = 1;
+    }
+
+    this->kailleraRecordByDefaultCheckBox->setChecked(
+        CoreSettingsGetBoolValue(SettingsID::Kaillera_RecordingEnabled));
+    this->kailleraPortSpinBox->setValue(kailleraPort);
+    this->kailleraRecordsDirectoryLineEdit->setProperty("rawPath", recordsDirectoryRaw);
+    this->kailleraRecordsDirectoryLineEdit->setText(getDisplayDirectoryPath(recordsDirectoryRaw));
+    this->kailleraRecordsDirectoryLineEdit->setToolTip(this->kailleraRecordsDirectoryLineEdit->text());
+    this->kailleraRecordingCapEnabledCheckBox->setChecked(
+        CoreSettingsGetBoolValue(SettingsID::Kaillera_RecordingCapEnabled));
+    this->kailleraRecordingCapMBSpinBox->setValue(recordingCapMB);
+    this->updateKailleraRecordingCapControls();
+    this->kailleraFlashOnJoinCheckBox->setChecked(
+        CoreSettingsGetBoolValue(SettingsID::Kaillera_FlashOnJoin));
+    this->kailleraBeepOnJoinCheckBox->setChecked(
+        CoreSettingsGetBoolValue(SettingsID::Kaillera_BeepOnJoin));
 }
 
 void SettingsDialog::loadHotkeySettings(void)
@@ -453,29 +843,13 @@ void SettingsDialog::loadHotkeySettings(void)
 
 void SettingsDialog::loadInterfaceGeneralSettings(void)
 {
-    // find stylesheets and add them to the UI
-    QString directory;
-    directory = QString::fromStdString(CoreGetSharedDataDirectory().string());
-    directory += CORE_DIR_SEPERATOR_STR;
-    directory += "Styles";
-    directory += CORE_DIR_SEPERATOR_STR;
-
-    QStringList filter;
-    filter << "*.qss";
-
-    QDirIterator stylesDirectoryIter(directory, filter, QDir::Files, QDirIterator::NoIteratorFlags);
-    while (stylesDirectoryIter.hasNext())
-    {
-        QFileInfo fileInfo(stylesDirectoryIter.next());
-        this->themeComboBox->addItem(fileInfo.fileName());
-    }
-
-#ifdef _WIN32
-    this->themeComboBox->insertItem(1,"Windows Vista");
-#endif
-
-    // select currently chosen theme in UI
-    this->themeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_Theme)));
+    const QList<ThemeOption> themeOptions = collectAvailableThemeOptions();
+    const QString currentTheme = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_Theme));
+    const bool showLegacy = isLegacyThemeValue(themeOptions, currentTheme);
+    const bool blocked = this->showLegacyThemesCheckBox->blockSignals(true);
+    this->showLegacyThemesCheckBox->setChecked(showLegacy);
+    this->showLegacyThemesCheckBox->blockSignals(blocked);
+    populateThemeCombo(this->themeComboBox, themeOptions, showLegacy, currentTheme);
     this->iconThemeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_IconTheme)));
     this->autoStartNetplayOnStartupCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup));
 #ifdef UPDATER
@@ -490,6 +864,54 @@ void SettingsDialog::loadInterfaceEmulationSettings(void)
     this->hideCursorCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_HideCursorInEmulation));
     this->hideCursorFullscreenCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_HideCursorInFullscreenEmulation));
     this->automaticFullscreenCheckbox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_AutomaticFullscreen));
+#ifdef _WIN32
+    this->exclusiveFullscreenCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_ExclusiveFullscreen));
+    this->betaFullscreenBackendCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_BetaFullscreenBackend));
+    if (this->betaFullscreenBackendCheckBox->isChecked())
+    {
+        this->automaticFullscreenCheckbox->setChecked(true);
+    }
+    {
+        // set saved values into combobox data before populating so they get selected
+        QString savedMonitor = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_ExclusiveFullscreenMonitor));
+        QString savedRes = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::GUI_ExclusiveFullscreenResolution));
+        int savedRate = CoreSettingsGetIntValue(SettingsID::GUI_ExclusiveFullscreenRefreshRate);
+        this->exclusiveMonitorComboBox->blockSignals(true);
+        this->exclusiveMonitorComboBox->clear();
+        // monitor combobox is populated in populateExclusiveFullscreenModes
+        // seed with saved value so it gets selected after population
+        this->exclusiveMonitorComboBox->addItem("Primary Monitor", "");
+        if (!savedMonitor.isEmpty())
+        {
+            this->exclusiveMonitorComboBox->addItem(savedMonitor, savedMonitor);
+            this->exclusiveMonitorComboBox->setCurrentIndex(1);
+        }
+        this->exclusiveMonitorComboBox->blockSignals(false);
+        this->exclusiveResolutionComboBox->blockSignals(true);
+        this->exclusiveResolutionComboBox->clear();
+        this->exclusiveResolutionComboBox->addItem("Desktop Default", "");
+        if (!savedRes.isEmpty())
+        {
+            this->exclusiveResolutionComboBox->addItem(savedRes, savedRes);
+            this->exclusiveResolutionComboBox->setCurrentIndex(1);
+        }
+        this->exclusiveResolutionComboBox->blockSignals(false);
+        this->exclusiveRefreshRateComboBox->blockSignals(true);
+        this->exclusiveRefreshRateComboBox->clear();
+        this->exclusiveRefreshRateComboBox->addItem("Desktop Default", 0);
+        if (savedRate > 0)
+        {
+            this->exclusiveRefreshRateComboBox->addItem(QString("%1 Hz").arg(savedRate), savedRate);
+            this->exclusiveRefreshRateComboBox->setCurrentIndex(1);
+        }
+        this->exclusiveRefreshRateComboBox->blockSignals(false);
+        this->populateExclusiveFullscreenModes();
+    }
+    this->betaFullscreenBackendCheckBox->setEnabled(this->exclusiveFullscreenCheckBox->isChecked());
+    this->exclusiveMonitorComboBox->setEnabled(this->exclusiveFullscreenCheckBox->isChecked());
+    this->exclusiveResolutionComboBox->setEnabled(this->exclusiveFullscreenCheckBox->isChecked());
+    this->exclusiveRefreshRateComboBox->setEnabled(this->exclusiveFullscreenCheckBox->isChecked());
+#endif
     this->confirmDragDropCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_ConfirmDragDrop));
     this->confirmExitWhileInGameCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_ConfirmExitWhileInGame));
     this->statusBarMessageDurationSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_StatusbarMessageDuration));
@@ -510,12 +932,14 @@ void SettingsDialog::loadInterfaceLogSettings(void)
 void SettingsDialog::loadInterfaceOSDSettings(void)
 {
     this->osdEnabledCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_OnScreenDisplayEnabled));
+    this->osdChatEnabledCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_OnScreenDisplayChatEnabled));
     this->osdLocationComboBox->setCurrentIndex(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayLocation));
     this->osdVerticalPaddingSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingY));
     this->osdHorizontalPaddingSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayPaddingX));
     this->osdDurationSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayDuration));
     this->osdScaleDoubleSpinBox->setValue(CoreSettingsGetFloatValue(SettingsID::GUI_OnScreenDisplayScale));
     this->osdMaxMessagesSpinBox->setValue(CoreSettingsGetIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages));
+    this->osdKailleraPortLabelsCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::GUI_OnScreenDisplayKailleraPortLabels));
 
     std::vector<int> backgroundColor = CoreSettingsGetIntListValue(SettingsID::GUI_OnScreenDisplayBackgroundColor);
     std::vector<int> textColor = CoreSettingsGetIntListValue(SettingsID::GUI_OnScreenDisplayTextColor);
@@ -530,6 +954,8 @@ void SettingsDialog::loadInterfaceOSDSettings(void)
         this->currentTextColor = QColor(textColor.at(0), textColor.at(1), textColor.at(2), textColor.at(3));
         this->chooseColor(this->changeTextColorButton, &this->currentTextColor, true);
     }
+
+    this->updateOSDSettingsEnabledState();
 }
 
 void SettingsDialog::loadInterfaceNetplaySettings(void)
@@ -547,6 +973,14 @@ void SettingsDialog::loadInterfaceNetplaySettings(void)
     // Kaillera uses built-in server list, no need for custom URLs
     // this->netplayServerUrlLineEdit->setText(QString::fromStdString(CoreSettingsGetStringValue(SettingsID::Netplay_ServerJsonUrl)));
     // this->netplayDispatcherUrlLineEdit->setText(QString::fromStdString(CoreSettingsGetStringValue(SettingsID::Netplay_DispatcherUrl)));
+}
+
+void SettingsDialog::loadRollbackSettings(void)
+{
+    this->rollbackVerboseStatsCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::Rollback_VerboseStats));
+    this->rollbackEnableLocalTestingCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::Rollback_EnableLocalTesting));
+    this->rollbackVerbosePifInputLoggingCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::Rollback_VerbosePifInputLogging));
+    this->rollbackVerboseGlideInputLoggingCheckBox->setChecked(CoreSettingsGetBoolValue(SettingsID::Rollback_VerboseGlideInputLogging));
 }
 
 void SettingsDialog::loadDefaultCoreSettings(void)
@@ -629,10 +1063,39 @@ void SettingsDialog::loadDefaultDirectorySettings(void)
 
 void SettingsDialog::loadDefault64DDSettings(void)
 {
-    this->japaneseIPLRomLineEdit->setText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::Core_64DD_JapaneseIPL)));
-    this->americanIPLRomLineEdit->setText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::Core_64DD_AmericanIPL)));
-    this->developmentIPLRomLineEdit->setText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::Core_64DD_DevelopmentIPL)));
-    this->diskSaveTypeComboBox->setCurrentIndex(CoreSettingsGetDefaultIntValue(SettingsID::Core_64DD_SaveDiskFormat));
+    int kailleraPort = CoreSettingsGetDefaultIntValue(SettingsID::Kaillera_Port);
+    if (kailleraPort < 1 || kailleraPort > 65535)
+    {
+        kailleraPort = 27886;
+    }
+
+    QString recordsDirectoryRaw = QString::fromStdString(
+        CoreSettingsGetDefaultStringValue(SettingsID::Kaillera_RecordsDirectory));
+    if (recordsDirectoryRaw.isEmpty())
+    {
+        recordsDirectoryRaw = "records";
+    }
+
+    int recordingCapMB = CoreSettingsGetDefaultIntValue(SettingsID::Kaillera_RecordingCapMB);
+    if (recordingCapMB < 1)
+    {
+        recordingCapMB = 1;
+    }
+
+    this->kailleraRecordByDefaultCheckBox->setChecked(
+        CoreSettingsGetDefaultBoolValue(SettingsID::Kaillera_RecordingEnabled));
+    this->kailleraPortSpinBox->setValue(kailleraPort);
+    this->kailleraRecordsDirectoryLineEdit->setProperty("rawPath", recordsDirectoryRaw);
+    this->kailleraRecordsDirectoryLineEdit->setText(getDisplayDirectoryPath(recordsDirectoryRaw));
+    this->kailleraRecordsDirectoryLineEdit->setToolTip(this->kailleraRecordsDirectoryLineEdit->text());
+    this->kailleraRecordingCapEnabledCheckBox->setChecked(
+        CoreSettingsGetDefaultBoolValue(SettingsID::Kaillera_RecordingCapEnabled));
+    this->kailleraRecordingCapMBSpinBox->setValue(recordingCapMB);
+    this->updateKailleraRecordingCapControls();
+    this->kailleraFlashOnJoinCheckBox->setChecked(
+        CoreSettingsGetDefaultBoolValue(SettingsID::Kaillera_FlashOnJoin));
+    this->kailleraBeepOnJoinCheckBox->setChecked(
+        CoreSettingsGetDefaultBoolValue(SettingsID::Kaillera_BeepOnJoin));
 }
 
 void SettingsDialog::loadDefaultHotkeySettings(void)
@@ -642,7 +1105,13 @@ void SettingsDialog::loadDefaultHotkeySettings(void)
 
 void SettingsDialog::loadDefaultInterfaceGeneralSettings(void)
 {
-    this->themeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_Theme)));
+    const QList<ThemeOption> themeOptions = collectAvailableThemeOptions();
+    const QString defaultTheme = QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_Theme));
+    const bool showLegacy = isLegacyThemeValue(themeOptions, defaultTheme);
+    const bool blocked = this->showLegacyThemesCheckBox->blockSignals(true);
+    this->showLegacyThemesCheckBox->setChecked(showLegacy);
+    this->showLegacyThemesCheckBox->blockSignals(blocked);
+    populateThemeCombo(this->themeComboBox, themeOptions, showLegacy, defaultTheme);
     this->iconThemeComboBox->setCurrentText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::GUI_IconTheme)));
     this->autoStartNetplayOnStartupCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_AutoStartNetplayOnStartup));
 #ifdef UPDATER
@@ -657,6 +1126,17 @@ void SettingsDialog::loadDefaultInterfaceEmulationSettings(void)
     this->hideCursorCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_HideCursorInEmulation));
     this->hideCursorFullscreenCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_HideCursorInFullscreenEmulation));
     this->automaticFullscreenCheckbox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_AutomaticFullscreen));
+#ifdef _WIN32
+    this->exclusiveFullscreenCheckBox->setChecked(false);
+    this->betaFullscreenBackendCheckBox->setChecked(false);
+    this->betaFullscreenBackendCheckBox->setEnabled(false);
+    this->exclusiveMonitorComboBox->setCurrentIndex(0);
+    this->exclusiveResolutionComboBox->setCurrentIndex(0);
+    this->exclusiveRefreshRateComboBox->setCurrentIndex(0);
+    this->exclusiveMonitorComboBox->setEnabled(false);
+    this->exclusiveResolutionComboBox->setEnabled(false);
+    this->exclusiveRefreshRateComboBox->setEnabled(false);
+#endif
     this->confirmDragDropCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_ConfirmDragDrop));
     this->confirmExitWhileInGameCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_ConfirmExitWhileInGame));
     this->statusBarMessageDurationSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_StatusbarMessageDuration));
@@ -677,12 +1157,14 @@ void SettingsDialog::loadDefaultInterfaceLogSettings(void)
 void SettingsDialog::loadDefaultInterfaceOSDSettings(void)
 {
     this->osdEnabledCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_OnScreenDisplayEnabled));
+    this->osdChatEnabledCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_OnScreenDisplayChatEnabled));
     this->osdLocationComboBox->setCurrentIndex(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayLocation));
     this->osdVerticalPaddingSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayPaddingY));
     this->osdHorizontalPaddingSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayPaddingX));
     this->osdDurationSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayDuration));
     this->osdScaleDoubleSpinBox->setValue(CoreSettingsGetDefaultFloatValue(SettingsID::GUI_OnScreenDisplayScale));
     this->osdMaxMessagesSpinBox->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GUI_OnScreenDisplayMaxMessages));
+    this->osdKailleraPortLabelsCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::GUI_OnScreenDisplayKailleraPortLabels));
 
     const std::vector<int> backgroundColor = CoreSettingsGetDefaultIntListValue(SettingsID::GUI_OnScreenDisplayBackgroundColor);
     const std::vector<int> textColor = CoreSettingsGetDefaultIntListValue(SettingsID::GUI_OnScreenDisplayTextColor);
@@ -697,6 +1179,8 @@ void SettingsDialog::loadDefaultInterfaceOSDSettings(void)
         this->currentTextColor = QColor(textColor.at(0), textColor.at(1), textColor.at(2), textColor.at(3));
         this->chooseColor(this->changeTextColorButton, &this->currentTextColor, true);
     }
+
+    this->updateOSDSettingsEnabledState();
 }
 
 void SettingsDialog::loadDefaultInterfaceNetplaySettings(void)
@@ -705,6 +1189,14 @@ void SettingsDialog::loadDefaultInterfaceNetplaySettings(void)
     // Kaillera uses built-in server list, no need for custom URLs
     // this->netplayServerUrlLineEdit->setText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::Netplay_ServerJsonUrl)));
     // this->netplayDispatcherUrlLineEdit->setText(QString::fromStdString(CoreSettingsGetDefaultStringValue(SettingsID::Netplay_DispatcherUrl)));
+}
+
+void SettingsDialog::loadDefaultRollbackSettings(void)
+{
+    this->rollbackVerboseStatsCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::Rollback_VerboseStats));
+    this->rollbackEnableLocalTestingCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::Rollback_EnableLocalTesting));
+    this->rollbackVerbosePifInputLoggingCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::Rollback_VerbosePifInputLogging));
+    this->rollbackVerboseGlideInputLoggingCheckBox->setChecked(CoreSettingsGetDefaultBoolValue(SettingsID::Rollback_VerboseGlideInputLogging));
 }
 
 void SettingsDialog::saveSettings(void)
@@ -728,6 +1220,7 @@ void SettingsDialog::saveSettings(void)
     this->saveInterfaceLogSettings();
     this->saveInterfaceOSDSettings();
     this->saveInterfaceNetplaySettings();
+    this->saveRollbackSettings();
     CoreSettingsSave();
 }
 
@@ -873,10 +1366,23 @@ void SettingsDialog::saveDirectorySettings(void)
 
 void SettingsDialog::save64DDSettings(void)
 {
-    CoreSettingsSetValue(SettingsID::Core_64DD_JapaneseIPL, this->japaneseIPLRomLineEdit->text().toStdString());
-    CoreSettingsSetValue(SettingsID::Core_64DD_AmericanIPL, this->americanIPLRomLineEdit->text().toStdString());
-    CoreSettingsSetValue(SettingsID::Core_64DD_DevelopmentIPL, this->developmentIPLRomLineEdit->text().toStdString());
-    CoreSettingsSetValue(SettingsID::Core_64DD_SaveDiskFormat, this->diskSaveTypeComboBox->currentIndex());
+    QString recordsDirectoryRaw = this->kailleraRecordsDirectoryLineEdit->property("rawPath").toString();
+    if (recordsDirectoryRaw.isEmpty())
+    {
+        recordsDirectoryRaw = "records";
+    }
+    std::string recordsDirectory = recordsDirectoryRaw.toStdString();
+
+    CoreSettingsSetValue(SettingsID::Kaillera_RecordingEnabled, this->kailleraRecordByDefaultCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Kaillera_Port, this->kailleraPortSpinBox->value());
+    CoreSettingsSetValue(SettingsID::Kaillera_RecordsDirectory, recordsDirectory);
+    CoreSettingsSetValue(SettingsID::Kaillera_RecordingCapEnabled, this->kailleraRecordingCapEnabledCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Kaillera_RecordingCapMB, this->kailleraRecordingCapMBSpinBox->value());
+    CoreSettingsSetValue(SettingsID::Kaillera_FlashOnJoin, this->kailleraFlashOnJoinCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Kaillera_BeepOnJoin, this->kailleraBeepOnJoinCheckBox->isChecked());
+
+    // Keep recording default/cap behavior in sync immediately after settings changes.
+    CoreRefreshKailleraRecordingStorageStatus();
 }
 
 void SettingsDialog::saveHotkeySettings(void)
@@ -886,7 +1392,7 @@ void SettingsDialog::saveHotkeySettings(void)
 
 void SettingsDialog::saveInterfaceGeneralSettings(void)
 {
-    CoreSettingsSetValue(SettingsID::GUI_Theme, this->themeComboBox->currentText().toStdString());
+    CoreSettingsSetValue(SettingsID::GUI_Theme, selectedThemeValue(this->themeComboBox).toStdString());
     CoreSettingsSetValue(SettingsID::GUI_IconTheme, this->iconThemeComboBox->currentText().toStdString());
     CoreSettingsSetValue(SettingsID::GUI_AutoStartNetplayOnStartup, this->autoStartNetplayOnStartupCheckBox->isChecked());
 #ifdef UPDATER
@@ -900,7 +1406,17 @@ void SettingsDialog::saveInterfaceEmulationSettings(void)
     CoreSettingsSetValue(SettingsID::GUI_HideCursorInFullscreenEmulation, this->hideCursorFullscreenCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_PauseEmulationOnFocusLoss, this->pauseEmulationOnFocusCheckbox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_ResumeEmulationOnFocus, this->resumeEmulationOnFocusCheckBox->isChecked());
+#ifdef _WIN32
+    const bool useExperimentalFullscreen = this->betaFullscreenBackendCheckBox->isChecked();
+    CoreSettingsSetValue(SettingsID::GUI_AutomaticFullscreen, this->automaticFullscreenCheckbox->isChecked() || useExperimentalFullscreen);
+    CoreSettingsSetValue(SettingsID::GUI_ExclusiveFullscreen, this->exclusiveFullscreenCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::GUI_BetaFullscreenBackend, useExperimentalFullscreen);
+    CoreSettingsSetValue(SettingsID::GUI_ExclusiveFullscreenMonitor, this->exclusiveMonitorComboBox->currentData().toString().toStdString());
+    CoreSettingsSetValue(SettingsID::GUI_ExclusiveFullscreenResolution, this->exclusiveResolutionComboBox->currentData().toString().toStdString());
+    CoreSettingsSetValue(SettingsID::GUI_ExclusiveFullscreenRefreshRate, this->exclusiveRefreshRateComboBox->currentData().toInt());
+#else
     CoreSettingsSetValue(SettingsID::GUI_AutomaticFullscreen, this->automaticFullscreenCheckbox->isChecked());
+#endif
     CoreSettingsSetValue(SettingsID::GUI_ConfirmDragDrop, this->confirmDragDropCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_ConfirmExitWhileInGame, this->confirmExitWhileInGameCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_StatusbarMessageDuration, this->statusBarMessageDurationSpinBox->value());
@@ -921,12 +1437,14 @@ void SettingsDialog::saveInterfaceLogSettings(void)
 void SettingsDialog::saveInterfaceOSDSettings(void)
 {
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayEnabled, this->osdEnabledCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayChatEnabled, this->osdChatEnabledCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayLocation, this->osdLocationComboBox->currentIndex());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayPaddingY, this->osdVerticalPaddingSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayPaddingX, this->osdHorizontalPaddingSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayDuration, this->osdDurationSpinBox->value());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayScale, static_cast<float>(this->osdScaleDoubleSpinBox->value()));
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayMaxMessages, this->osdMaxMessagesSpinBox->value());
+    CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayKailleraPortLabels, this->osdKailleraPortLabelsCheckBox->isChecked());
     CoreSettingsSetValue(SettingsID::GUI_OnScreenDisplayBackgroundColor, std::vector<int>({ this->currentBackgroundColor.red(),
                                                                                             this->currentBackgroundColor.green(),
                                                                                             this->currentBackgroundColor.blue(),
@@ -945,6 +1463,14 @@ void SettingsDialog::saveInterfaceNetplaySettings(void)
     // Kaillera uses built-in server list, no need for custom URLs
     // CoreSettingsSetValue(SettingsID::Netplay_ServerJsonUrl, this->netplayServerUrlLineEdit->text().toStdString());
     // CoreSettingsSetValue(SettingsID::Netplay_DispatcherUrl, this->netplayDispatcherUrlLineEdit->text().toStdString());
+}
+
+void SettingsDialog::saveRollbackSettings(void)
+{
+    CoreSettingsSetValue(SettingsID::Rollback_VerboseStats, this->rollbackVerboseStatsCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Rollback_EnableLocalTesting, this->rollbackEnableLocalTestingCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Rollback_VerbosePifInputLogging, this->rollbackVerbosePifInputLoggingCheckBox->isChecked());
+    CoreSettingsSetValue(SettingsID::Rollback_VerboseGlideInputLogging, this->rollbackVerboseGlideInputLoggingCheckBox->isChecked());
 }
 
 void SettingsDialog::commonHotkeySettings(SettingsDialogAction action)
@@ -969,6 +1495,7 @@ void SettingsDialog::commonHotkeySettings(SettingsDialogAction action)
         { this->pauseKeyButton, SettingsID::KeyBinding_Resume },
         { this->generateBitmapKeyButton, SettingsID::KeyBinding_Screenshot },
         { this->limitFPSKeyButton, SettingsID::KeyBinding_LimitFPS },
+        { this->netplayChatKeyButton, SettingsID::KeyBinding_NetplayChat },
         { this->saveStateKeyButton, SettingsID::KeyBinding_SaveState },
         { this->saveAsKeyButton, SettingsID::KeyBinding_SaveAs },
         { this->loadStateKeyButton, SettingsID::KeyBinding_LoadState },
@@ -1217,7 +1744,7 @@ void SettingsDialog::setIconsForEmulationInfoText(void)
 {
     QLabel* labels[] = {
         this->infoIconLabel_0, this->infoIconLabel_1, this->infoIconLabel_2,
-        this->infoIconLabel_3, this->infoIconLabel_4, this->infoIconLabel_5,
+        this->infoIconLabel_3, this->infoIconLabel_5,
         this->infoIconLabel_7, this->infoIconLabel_6, this->infoIconLabel_8,
         this->infoIconLabel_9
     };
@@ -1234,7 +1761,7 @@ void SettingsDialog::setIconsForEmulationInfoText(void)
 void SettingsDialog::hideEmulationInfoText(void)
 {
     QHBoxLayout *layouts[] = {this->emulationInfoLayout_0, this->emulationInfoLayout_1, 
-                                this->emulationInfoLayout_2, this->emulationInfoLayout_3,
+                                this->emulationInfoLayout_2,
                                 this->emulationInfoLayout_9};
 
     for (const auto &layout : layouts)
@@ -1245,6 +1772,26 @@ void SettingsDialog::hideEmulationInfoText(void)
             widget->hide();
         }
     }
+}
+
+void SettingsDialog::updateKailleraRecordingCapControls(void)
+{
+    const bool recordingByDefault = this->kailleraRecordByDefaultCheckBox->isChecked();
+    const bool capEnabled = this->kailleraRecordingCapEnabledCheckBox->isChecked();
+
+    this->kailleraRecordingCapEnabledCheckBox->setEnabled(recordingByDefault);
+    this->kailleraRecordingCapMBSpinBox->setEnabled(recordingByDefault && capEnabled);
+}
+
+void SettingsDialog::updateOSDSettingsEnabledState(void)
+{
+    const bool osdEnabled = this->osdEnabledCheckBox->isChecked();
+    const bool chatEnabled = this->osdChatEnabledCheckBox->isChecked();
+
+    this->osdGlobalSettingsGroupBox->setEnabled(osdEnabled);
+    this->osdChatEnabledCheckBox->setEnabled(osdEnabled);
+    this->osdChatSettingsGroupBox->setEnabled(osdEnabled && chatEnabled);
+    this->osdKailleraPortLabelsCheckBox->setEnabled(osdEnabled);
 }
 
 void SettingsDialog::chooseDirectory(QLineEdit *lineEdit, QString caption)
@@ -1430,34 +1977,42 @@ void SettingsDialog::on_changeSaveSramDirButton_clicked(void)
     this->chooseDirectory(this->saveSramDirLineEdit, tr("Select Save (SRAM) Directory"));
 }
 
-void SettingsDialog::on_changeJapaneseIPLRomPathButton_clicked(void)
+void SettingsDialog::on_changeKailleraRecordsDirectoryButton_clicked(void)
 {
-    this->chooseFile(this->japaneseIPLRomLineEdit, tr("Open Japanese Retail 64DD IPL"), "IPL ROMs (*.n64)");
+    QString currentPathRaw = this->kailleraRecordsDirectoryLineEdit->property("rawPath").toString();
+    if (currentPathRaw.isEmpty())
+    {
+        currentPathRaw = "records";
+    }
+
+    QString currentPath = currentPathRaw;
+    if (!QDir(currentPath).isAbsolute())
+    {
+        currentPath = QDir::current().absoluteFilePath(currentPath);
+    }
+
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Select Kaillera Records Directory"), currentPath);
+    if (dir.isEmpty())
+    {
+        return;
+    }
+
+    QString nativePath = QDir::toNativeSeparators(dir);
+    this->kailleraRecordsDirectoryLineEdit->setProperty("rawPath", nativePath);
+    this->kailleraRecordsDirectoryLineEdit->setText(nativePath);
+    this->kailleraRecordsDirectoryLineEdit->setToolTip(nativePath);
 }
 
-void SettingsDialog::on_changeAmericanIPLRomPathButton_clicked(void)
+void SettingsDialog::on_kailleraRecordByDefaultCheckBox_toggled(bool checked)
 {
-    this->chooseFile(this->americanIPLRomLineEdit, tr("Open American Retail 64DD IPL"), "IPL ROMs (*.n64)");
+    (void)checked;
+    this->updateKailleraRecordingCapControls();
 }
 
-void SettingsDialog::on_changeDevelopmentIPLRomPathButton_clicked(void)
+void SettingsDialog::on_kailleraRecordingCapEnabledCheckBox_toggled(bool checked)
 {
-    this->chooseFile(this->developmentIPLRomLineEdit, tr("Open Japanese Development 64DD IPL"), "IPL ROMs (*.n64)");
-}
-
-void SettingsDialog::on_clearJapaneseIPLRomPathButton_clicked(void)
-{
-    this->japaneseIPLRomLineEdit->clear();
-}
-
-void SettingsDialog::on_clearAmericanIPLRomPathButton_clicked(void)
-{
-    this->americanIPLRomLineEdit->clear();
-}
-
-void SettingsDialog::on_clearDevelopmentIPLRomPathButton_clicked(void)
-{
-    this->developmentIPLRomLineEdit->clear();
+    (void)checked;
+    this->updateKailleraRecordingCapControls();
 }
 
 void SettingsDialog::on_changeBackgroundColorButton_clicked(void)

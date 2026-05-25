@@ -20,6 +20,7 @@
 #include "m64p/api/m64p_types.h"
 
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <variant>
 
@@ -72,6 +73,8 @@ static bool l_InputPluginSwitchRequested = false;
 #define SETTING_SECTION_AUDIO       SETTING_SECTION_GUI  " - Audio Plugin"
 #define SETTING_SECTION_INPUT       SETTING_SECTION_GUI  " - Input Plugin"
 #define SETTING_SECTION_GCA         SETTING_SECTION_GUI  " - GameCube Adapter Input Plugin"
+#define SETTING_SECTION_KAILLERA    SETTING_SECTION_GUI  " Kaillera"
+#define SETTING_SECTION_ROLLBACK    SETTING_SECTION_GUI  " Rollback"
 #define SETTING_SECTION_RSP         "Rsp-HLE"
 
 // retrieves l_Setting from settingId
@@ -102,6 +105,21 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::GUI_AutomaticFullscreen:
         setting = {SETTING_SECTION_GUI, "AutomaticFullscreen", false};
+        break;
+    case SettingsID::GUI_ExclusiveFullscreen:
+        setting = {SETTING_SECTION_GUI, "ExclusiveFullscreen", false};
+        break;
+    case SettingsID::GUI_BetaFullscreenBackend:
+        setting = {SETTING_SECTION_GUI, "BetaFullscreenBackend", false};
+        break;
+    case SettingsID::GUI_ExclusiveFullscreenMonitor:
+        setting = {SETTING_SECTION_GUI, "ExclusiveFullscreenMonitor", std::string("")};
+        break;
+    case SettingsID::GUI_ExclusiveFullscreenResolution:
+        setting = {SETTING_SECTION_GUI, "ExclusiveFullscreenResolution", std::string("")};
+        break;
+    case SettingsID::GUI_ExclusiveFullscreenRefreshRate:
+        setting = {SETTING_SECTION_GUI, "ExclusiveFullscreenRefreshRate", 0};
         break;
     case SettingsID::GUI_ConfirmDragDrop:
         setting = {SETTING_SECTION_GUI, "ConfirmDragDrop", true};
@@ -145,6 +163,12 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GUI_OnScreenDisplayMaxMessages:
         setting = {SETTING_SECTION_GUI, "OnScreenDisplayMaxMessages", 5};
         break;
+    case SettingsID::GUI_OnScreenDisplayChatEnabled:
+        setting = {SETTING_SECTION_GUI, "OnScreenDisplayChatEnabled", true};
+        break;
+    case SettingsID::GUI_OnScreenDisplayKailleraPortLabels:
+        setting = {SETTING_SECTION_GUI, "OnScreenDisplayKailleraPortLabels", false};
+        break;
     case SettingsID::GUI_AutoStartNetplayOnStartup:
         setting = {SETTING_SECTION_GUI, "AutoStartNetplayOnStartup", false};
         break;
@@ -158,7 +182,7 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GUI, "StatusBar", true};
         break;
     case SettingsID::GUI_Theme:
-        setting = {SETTING_SECTION_GUI, "Theme", std::string("Native")};
+        setting = {SETTING_SECTION_GUI, "Theme", std::string("Modern")};
         break;
     case SettingsID::GUI_IconTheme:
         setting = {SETTING_SECTION_GUI, "IconTheme", std::string("Automatic")};
@@ -190,6 +214,143 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::Netplay_SelectedServer:
         setting = {SETTING_SECTION_NETPLAY, "SelectedServer", std::string("")};
+        break;
+
+    case SettingsID::Kaillera_ActiveMode:
+        setting = {SETTING_SECTION_KAILLERA, "ActiveMode", 0}; // 0=P2P, 1=Server, 2=Playback
+        break;
+    case SettingsID::Kaillera_Username:
+        setting = {SETTING_SECTION_KAILLERA, "Username", std::string("Player")};
+        break;
+    case SettingsID::Kaillera_Port:
+        setting = {SETTING_SECTION_KAILLERA, "Port", 27886};
+        break;
+    case SettingsID::Kaillera_FrameDelay:
+        setting = {SETTING_SECTION_KAILLERA, "FrameDelay", 0}; // 0=server decides
+        break;
+    case SettingsID::Kaillera_ConnectionSetting:
+        setting = {SETTING_SECTION_KAILLERA, "ConnectionSetting", 1}; // 1=LAN, 2=Good, 3=Average, 4=Low, 6=Bad
+        break;
+    case SettingsID::Kaillera_RecordingEnabled:
+        setting = {SETTING_SECTION_KAILLERA, "RecordingEnabled", false};
+        break;
+    case SettingsID::Kaillera_RecordsDirectory:
+        setting = {SETTING_SECTION_KAILLERA, "RecordsDirectory", std::string("records")};
+        break;
+    case SettingsID::Kaillera_RecordingCapEnabled:
+        setting = {SETTING_SECTION_KAILLERA, "RecordingCapEnabled", true};
+        break;
+    case SettingsID::Kaillera_RecordingCapMB:
+        setting = {SETTING_SECTION_KAILLERA, "RecordingCapMB", 1024};
+        break;
+    case SettingsID::Kaillera_SpoofPing:
+        setting = {SETTING_SECTION_KAILLERA, "SpoofPing", 0}; // 0=disabled, >0=spoof ping in ms
+        break;
+    case SettingsID::Kaillera_30fpsMode:
+        setting = {SETTING_SECTION_KAILLERA, "30fpsMode", false};
+        break;
+    case SettingsID::Kaillera_MaxPlayers:
+        setting = {SETTING_SECTION_KAILLERA, "MaxPlayers", 4};
+        break;
+    case SettingsID::Kaillera_MaxPing:
+        setting = {SETTING_SECTION_KAILLERA, "MaxPing", 999};
+        break;
+    case SettingsID::Kaillera_FlashOnJoin:
+        setting = {SETTING_SECTION_KAILLERA, "FlashOnJoin", true};
+        break;
+    case SettingsID::Kaillera_BeepOnJoin:
+        setting = {SETTING_SECTION_KAILLERA, "BeepOnJoin", true};
+        break;
+    case SettingsID::Kaillera_JoinMessageHost:
+        setting = {SETTING_SECTION_KAILLERA, "JoinMessageHost", std::string("")};
+        break;
+    case SettingsID::Kaillera_JoinMessageJoin:
+        setting = {SETTING_SECTION_KAILLERA, "JoinMessageJoin", std::string("")};
+        break;
+    case SettingsID::Kaillera_P2PStaticCode:
+        setting = {SETTING_SECTION_KAILLERA, "P2PStaticCode", std::string("")};
+        break;
+    case SettingsID::Kaillera_P2PStaticCodeOwnerToken:
+        setting = {SETTING_SECTION_KAILLERA, "P2PStaticCodeOwnerToken", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerListNames:
+        setting = {SETTING_SECTION_KAILLERA, "ServerListNames", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerListHosts:
+        setting = {SETTING_SECTION_KAILLERA, "ServerListHosts", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerListCountries:
+        setting = {SETTING_SECTION_KAILLERA, "ServerListCountries", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerListPings:
+        setting = {SETTING_SECTION_KAILLERA, "ServerListPings", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerListPingValues:
+        setting = {SETTING_SECTION_KAILLERA, "ServerListPingValues", std::string("")};
+        break;
+    case SettingsID::Kaillera_LiveServerCacheNames:
+        setting = {SETTING_SECTION_KAILLERA, "LiveServerCacheNames", std::string("")};
+        break;
+    case SettingsID::Kaillera_LiveServerCacheHosts:
+        setting = {SETTING_SECTION_KAILLERA, "LiveServerCacheHosts", std::string("")};
+        break;
+    case SettingsID::Kaillera_LiveServerCacheCountries:
+        setting = {SETTING_SECTION_KAILLERA, "LiveServerCacheCountries", std::string("")};
+        break;
+    case SettingsID::Kaillera_LiveServerCachePings:
+        setting = {SETTING_SECTION_KAILLERA, "LiveServerCachePings", std::string("")};
+        break;
+    case SettingsID::Kaillera_LiveServerCachePingValues:
+        setting = {SETTING_SECTION_KAILLERA, "LiveServerCachePingValues", std::string("")};
+        break;
+    case SettingsID::Kaillera_BrowserGeometry:
+        setting = {SETTING_SECTION_KAILLERA, "BrowserGeometry", std::string("")};
+        break;
+    case SettingsID::Kaillera_BrowserTopSplitter:
+        setting = {SETTING_SECTION_KAILLERA, "BrowserTopSplitter", std::string("")};
+        break;
+    case SettingsID::Kaillera_BrowserBottomSplitter:
+        setting = {SETTING_SECTION_KAILLERA, "BrowserBottomSplitter", std::string("")};
+        break;
+    case SettingsID::Kaillera_NetplayGeometry:
+        setting = {SETTING_SECTION_KAILLERA, "NetplayGeometry", std::string("")};
+        break;
+    case SettingsID::Kaillera_ServerColumnWidths:
+        setting = {SETTING_SECTION_KAILLERA, "ServerColumnWidths", std::string("")};
+        break;
+    case SettingsID::Kaillera_UserColumnWidths:
+        setting = {SETTING_SECTION_KAILLERA, "UserColumnWidths", std::string("")};
+        break;
+    case SettingsID::Kaillera_GameColumnWidths:
+        setting = {SETTING_SECTION_KAILLERA, "GameColumnWidths", std::string("")};
+        break;
+    case SettingsID::Kaillera_PlayerColumnWidths:
+        setting = {SETTING_SECTION_KAILLERA, "PlayerColumnWidths", std::string("")};
+        break;
+    case SettingsID::Kaillera_P2PLastGame:
+        setting = {SETTING_SECTION_KAILLERA, "P2PLastGame", std::string("")};
+        break;
+    case SettingsID::Kaillera_P2PShowOnPublicList:
+        setting = {SETTING_SECTION_KAILLERA, "P2PShowOnPublicList", true};
+        break;
+    case SettingsID::Kaillera_FfmpegPath:
+        setting = {SETTING_SECTION_KAILLERA, "FfmpegPath", std::string("")};
+        break;
+    case SettingsID::Kaillera_ExportLabelPorts:
+        setting = {SETTING_SECTION_KAILLERA, "ExportLabelPorts", true};
+        break;
+
+    case SettingsID::Rollback_VerboseStats:
+        setting = {SETTING_SECTION_ROLLBACK, "VerboseStats", false};
+        break;
+    case SettingsID::Rollback_EnableLocalTesting:
+        setting = {SETTING_SECTION_ROLLBACK, "EnableLocalTesting", false};
+        break;
+    case SettingsID::Rollback_VerbosePifInputLogging:
+        setting = {SETTING_SECTION_ROLLBACK, "VerbosePifInputLogging", false};
+        break;
+    case SettingsID::Rollback_VerboseGlideInputLogging:
+        setting = {SETTING_SECTION_ROLLBACK, "VerboseGlideInputLogging", false};
         break;
 
     case SettingsID::Core_GFX_Plugin:
@@ -481,6 +642,9 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::KeyBinding_GSButton:
         setting = {SETTING_SECTION_KEYBIND, "GSButton", std::string("F9")};
+        break;
+    case SettingsID::KeyBinding_NetplayChat:
+        setting = {SETTING_SECTION_KEYBIND, "NetplayChat", std::string("Return")};
         break;
     case SettingsID::KeyBinding_SaveStateSlot0:
         setting = {SETTING_SECTION_KEYBIND, "SaveStateSlot0", std::string("Ctrl+0")};
@@ -869,6 +1033,18 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::Input_ZTrigger_ExtraData:
         setting = {"", "ZTrigger_ExtraData"};
+        break;
+    case SettingsID::Input_ZTrigger2_InputType:
+        setting = {"", "ZTrigger2_InputType"};
+        break;
+    case SettingsID::Input_ZTrigger2_Name:
+        setting = {"", "ZTrigger2_Name"};
+        break;
+    case SettingsID::Input_ZTrigger2_Data:
+        setting = {"", "ZTrigger2_Data"};
+        break;
+    case SettingsID::Input_ZTrigger2_ExtraData:
+        setting = {"", "ZTrigger2_ExtraData"};
         break;
     case SettingsID::Input_AnalogStickUp_InputType:
         setting = {"", "AnalogStickUp_InputType"};
@@ -1415,6 +1591,9 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GCAInput_Map_Z:
         setting = {SETTING_SECTION_GCA, "Map_Z", 4};
         break;
+    case SettingsID::GCAInput_Map_Z2:
+        setting = {SETTING_SECTION_GCA, "Map_Z2", -1};
+        break;
     case SettingsID::GCAInput_Map_L:
         setting = {SETTING_SECTION_GCA, "Map_L", 12};
         break;
@@ -1744,6 +1923,81 @@ static bool string_to_string_list(const std::string& string, std::vector<std::st
     return true;
 }
 
+static bool parse_version_component(const std::string& version, size_t& position, int& value)
+{
+    if (position >= version.size() ||
+        !std::isdigit(static_cast<unsigned char>(version[position])))
+    {
+        return false;
+    }
+
+    value = 0;
+    while (position < version.size() &&
+        std::isdigit(static_cast<unsigned char>(version[position])))
+    {
+        value = (value * 10) + (version[position] - '0');
+        position++;
+    }
+
+    return true;
+}
+
+static bool parse_settings_version(const std::string& version, int& major, int& minor, int& patch)
+{
+    size_t position = 0;
+    if (position < version.size() && (version[position] == 'v' || version[position] == 'V'))
+    {
+        position++;
+    }
+    if (position < version.size() && version[position] == '.')
+    {
+        position++;
+    }
+
+    if (!parse_version_component(version, position, major))
+    {
+        return false;
+    }
+    if (position >= version.size() || version[position] != '.')
+    {
+        return false;
+    }
+    position++;
+
+    if (!parse_version_component(version, position, minor))
+    {
+        return false;
+    }
+    if (position >= version.size() || version[position] != '.')
+    {
+        return false;
+    }
+    position++;
+
+    return parse_version_component(version, position, patch);
+}
+
+static bool settings_version_at_or_before(const std::string& version, int major, int minor, int patch)
+{
+    int parsedMajor = 0;
+    int parsedMinor = 0;
+    int parsedPatch = 0;
+    if (!parse_settings_version(version, parsedMajor, parsedMinor, parsedPatch))
+    {
+        return false;
+    }
+
+    if (parsedMajor != major)
+    {
+        return parsedMajor < major;
+    }
+    if (parsedMinor != minor)
+    {
+        return parsedMinor < minor;
+    }
+    return parsedPatch <= patch;
+}
+
 //
 // Exported Functions
 //
@@ -1772,9 +2026,11 @@ CORE_EXPORT bool CoreSettingsSave(void)
 CORE_EXPORT bool CoreSettingsUpgrade(void)
 {
     std::string settingsVersion;
+    std::string settingsVersionRaw;
     std::string settingsString;
 
-    settingsVersion = CoreSettingsGetStringValue(SettingsID::GUI_Version);
+    settingsVersionRaw = CoreSettingsGetStringValue(SettingsID::GUI_Version);
+    settingsVersion = settingsVersionRaw;
     if (settingsVersion.size() > 6)
     { // strip git prefix
         settingsVersion = settingsVersion.substr(0, 6);
@@ -1842,6 +2098,18 @@ CORE_EXPORT bool CoreSettingsUpgrade(void)
         {
             CoreSettingsSetValue(SettingsID::Netplay_ServerJsonUrl, std::string(""));
         }
+    }
+
+    if (settingsVersion.empty() || settings_version_at_or_before(settingsVersionRaw, 0, 9, 5))
+    {
+        settingsString = CoreSettingsGetStringValue(SettingsID::GUI_Theme);
+        if (settingsString == "Native")
+        {
+            CoreSettingsSetValue(SettingsID::GUI_Theme, std::string("Modern"));
+        }
+
+        CoreSettingsSetValue(SettingsID::Rollback_EnableLocalTesting, false);
+        CoreSettingsSetValue(SettingsID::Kaillera_FlashOnJoin, true);
     }
 
     // save core version

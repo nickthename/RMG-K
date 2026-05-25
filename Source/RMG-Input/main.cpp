@@ -16,9 +16,6 @@
 #include "Thread/SDLThread.hpp"
 #include "common.hpp"
 #include "main.hpp"
-#ifdef VRU
-#include "VRU.hpp"
-#endif // VRU
 
 #define M64P_PLUGIN_PROTOTYPES 1
 #include <RMG-Core/m64p/api/m64p_common.h>
@@ -113,6 +110,7 @@ struct InputProfile
     InputMapping Button_LeftShoulder;
     InputMapping Button_RightShoulder;
     InputMapping Button_ZTrigger;
+    InputMapping Button_ZTrigger2;
 
     // analog stick
     InputMapping AnalogStick_Up;
@@ -236,6 +234,39 @@ static void load_inputmapping_settings(InputMapping* mapping, std::string sectio
     }
 }
 
+static const char* input_device_type_to_string(const InputDeviceType type)
+{
+    switch (type)
+    {
+        case InputDeviceType::Invalid:
+            return "Invalid";
+        case InputDeviceType::None:
+            return "None";
+        case InputDeviceType::Automatic:
+            return "Automatic";
+        case InputDeviceType::Joystick:
+            return "Joystick";
+        case InputDeviceType::Keyboard:
+            return "Keyboard";
+        default:
+            return "Unknown";
+    }
+}
+
+static void log_profile_state(const int index, const std::string& context, const InputProfile& profile, const std::string& section)
+{
+    std::string debugMessage = context;
+    debugMessage += " [Port " + std::to_string(index) + "]: ";
+    debugMessage += "section=\"" + section + "\", ";
+    debugMessage += "PluggedIn=";
+    debugMessage += profile.PluggedIn ? "true" : "false";
+    debugMessage += ", DeviceType=" + std::string(input_device_type_to_string(profile.DeviceType));
+    debugMessage += ", DeviceName=\"" + profile.DeviceName + "\"";
+    debugMessage += ", DevicePath=\"" + profile.DevicePath + "\"";
+    debugMessage += ", DeviceSerial=\"" + profile.DeviceSerial + "\"";
+    PluginDebugMessage(M64MSG_VERBOSE, debugMessage);
+}
+
 static void load_settings(void)
 {
     std::string gameId;
@@ -303,6 +334,7 @@ static void load_settings(void)
         if (!CoreSettingsSectionExists(section))
         {
             profile->PluggedIn = false;
+            log_profile_state(i, "load_settings()", *profile, section);
             continue;
         }
 
@@ -335,6 +367,7 @@ static void load_settings(void)
         LOAD_INPUT_MAPPING(Button_LeftShoulder,  Input_LeftShoulder);
         LOAD_INPUT_MAPPING(Button_RightShoulder, Input_RightShoulder);
         LOAD_INPUT_MAPPING(Button_ZTrigger,     Input_ZTrigger);
+        LOAD_INPUT_MAPPING(Button_ZTrigger2,    Input_ZTrigger2);
         LOAD_INPUT_MAPPING(AnalogStick_Up,      Input_AnalogStickUp);
         LOAD_INPUT_MAPPING(AnalogStick_Down,    Input_AnalogStickDown);
         LOAD_INPUT_MAPPING(AnalogStick_Left,    Input_AnalogStickLeft);
@@ -381,6 +414,8 @@ static void load_settings(void)
         LOAD_INPUT_MAPPING(Hotkey_Fullscreen, Input_Hotkey_Fullscreen);
 
 #undef LOAD_INPUT_MAPPING
+
+        log_profile_state(i, "load_settings()", *profile, section);
     }
 }
 
@@ -397,7 +432,6 @@ static void apply_controller_profiles(void)
     {
         InputProfile* profile = &l_InputProfiles[i];
         int plugin = PLUGIN_NONE;
-        bool emulateVRU = (profile->DeviceType == InputDeviceType::EmulateVRU);
 
         switch (profile->ControllerPak)
         {
@@ -415,26 +449,17 @@ static void apply_controller_profiles(void)
                 break;
         }
 
-#ifdef VRU
-        // attempt to try initializing VRU when needed,
-        // if it fails, unplug the VRU
-        if (emulateVRU && !IsVRUInit() && !InitVRU())
-        {
-            profile->PluggedIn = false;
-        }
-#else
-        // always unplug VRU when RMG-Input was built
-        // without VRU support
-        if (emulateVRU)
-        {
-            profile->PluggedIn = false;
-        }
-#endif // VRU
+        std::string pluginDebugMessage = "apply_controller_profiles(): ";
+        pluginDebugMessage += "Port " + std::to_string(i);
+        pluginDebugMessage += " setting Present=";
+        pluginDebugMessage += profile->PluggedIn ? "1" : "0";
+        pluginDebugMessage += ", Plugin=" + std::to_string(plugin);
+        PluginDebugMessage(M64MSG_VERBOSE, pluginDebugMessage);
 
         l_ControlInfo.Controls[i].Present = profile->PluggedIn ? 1 : 0;
-        l_ControlInfo.Controls[i].Plugin  = emulateVRU ? PLUGIN_NONE : plugin;
+        l_ControlInfo.Controls[i].Plugin  = plugin;
         l_ControlInfo.Controls[i].RawData = 0;
-        l_ControlInfo.Controls[i].Type    = emulateVRU ? CONT_TYPE_VRU : CONT_TYPE_STANDARD;
+        l_ControlInfo.Controls[i].Type    = CONT_TYPE_STANDARD;
     }
 }
 
@@ -588,12 +613,14 @@ static void open_controller_automatic(int index, InputProfile* profile, SDL_Joys
     }
 }
 
-static void open_controller(InputProfile* profile, SDL_JoystickID* joysticks, int joysticksCount)
+static void open_controller(int index, InputProfile* profile, SDL_JoystickID* joysticks, int joysticksCount)
 {
     SDL_JoystickID joystickId;
     SDL_Joystick* joystick = nullptr;
     SDL_Gamepad* gamepad = nullptr;
+    bool foundJoystick = false;
     std::string errorMessage;
+    std::string debugMessage;
 
     std::string deviceName;
     std::string devicePath;
@@ -649,6 +676,9 @@ static void open_controller(InputProfile* profile, SDL_JoystickID* joysticks, in
         {
             profile->SDLJoystick = joystick;
             profile->SDLGamepad = gamepad;
+            foundJoystick = true;
+            debugMessage = "open_controller(" + std::to_string(index) + "): matched configured device name=\"" + deviceName + "\"";
+            PluginDebugMessage(M64MSG_VERBOSE, debugMessage);
             return;
         }
 
@@ -663,6 +693,24 @@ static void open_controller(InputProfile* profile, SDL_JoystickID* joysticks, in
             SDL_CloseJoystick(joystick);
             joystick = nullptr;
         }
+    }
+
+    if (!foundJoystick)
+    {
+        std::string debugMessageBase = "open_controller(): profile[" + std::to_string(index) + "] failed to find selected device: ";
+        debugMessageBase += "selected name=\"" + profile->DeviceName + "\"";
+        debugMessageBase += ", path=\"" + profile->DevicePath + "\"";
+        debugMessageBase += ", serial=\"" + profile->DeviceSerial + "\"";
+        PluginDebugMessage(M64MSG_WARNING, debugMessageBase);
+
+        profile->PluggedIn = false;
+        if (l_HasControlInfo)
+        {
+            l_ControlInfo.Controls[index].Present = 0;
+        }
+
+        profile->SDLGamepad = nullptr;
+        profile->SDLJoystick = nullptr;
     }
 }
 
@@ -718,6 +766,9 @@ static void open_controllers(void)
         InputProfile* profile = &l_InputProfiles[i];
 
         close_controller(profile);
+        std::string debugMessage = "open_controllers(): preparing port " + std::to_string(i) +
+            " (" + std::string(input_device_type_to_string(profile->DeviceType)) + ")";
+        PluginDebugMessage(M64MSG_VERBOSE, debugMessage);
 
         if (profile->DeviceType == InputDeviceType::Automatic)
         {
@@ -725,7 +776,7 @@ static void open_controllers(void)
         }
         else if (profile->DeviceType == InputDeviceType::Joystick)
         {
-            open_controller(profile, joysticks, joysticksCount);
+            open_controller(i, profile, joysticks, joysticksCount);
         }
     }
 
@@ -807,7 +858,7 @@ static int get_button_state(InputProfile* profile, const InputMapping* inputMapp
 }
 
 // returns axis input scaled to the range [-1, 1]
-static double get_axis_state(InputProfile* profile, const InputMapping* inputMapping, const int direction, const double value, bool& useButtonMapping)
+static double get_axis_state(InputProfile* profile, const InputMapping* inputMapping, const int direction, const double value, bool& useButtonMapping, bool& buttonPressed)
 {
     double axis_state   = value;
     bool   button_state = false;
@@ -862,8 +913,10 @@ static double get_axis_state(InputProfile* profile, const InputMapping* inputMap
         }
     }
 
+    buttonPressed = button_state;
+
     // when a button has been mapped
-    // to an axis, we should prioritize 
+    // to an axis, we should prioritize
     // the button when it's been pressed
     if (button_state)
     {
@@ -1050,13 +1103,6 @@ static void sdl_quit()
             SDL_QuitSubSystem(subsystem);
         }
     }
-
-#ifdef VRU
-    if (HasVRUInitSDL() && SDL_WasInit(SDL_INIT_AUDIO))
-    {
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
-    }
-#endif
 }
 
 //
@@ -1286,23 +1332,6 @@ EXPORT void CALL GetKeys(int Control, BUTTONS* Keys)
         return;
     }
 
-#ifdef VRU
-    // when we're emulating the VRU,
-    // we need to check the mic state
-    if (profile->DeviceType == InputDeviceType::EmulateVRU)
-    {
-        if (GetVRUMicState())
-        {
-            Keys->Value = 0x0020;
-        }
-        else
-        {
-            Keys->Value = 0x0000;
-        }
-        return;
-    }
-#endif // VRU
-
     // when we've matched a hotkey,
     // we don't need to check anything
     // else
@@ -1324,14 +1353,20 @@ EXPORT void CALL GetKeys(int Control, BUTTONS* Keys)
     Keys->R_CBUTTON    = get_button_state(profile, &profile->Button_CButtonRight);
     Keys->L_TRIG       = get_button_state(profile, &profile->Button_LeftShoulder);
     Keys->R_TRIG       = get_button_state(profile, &profile->Button_RightShoulder);
-    Keys->Z_TRIG       = get_button_state(profile, &profile->Button_ZTrigger);
+    Keys->Z_TRIG       = get_button_state(profile, &profile->Button_ZTrigger) ||
+                         get_button_state(profile, &profile->Button_ZTrigger2);
 
     double inputX = 0, inputY = 0;
     bool useButtonMapping = false;
-    inputY = get_axis_state(profile, &profile->AnalogStick_Up,    1, inputY, useButtonMapping);
-    inputY = get_axis_state(profile, &profile->AnalogStick_Down, -1, inputY, useButtonMapping);
-    inputX = get_axis_state(profile, &profile->AnalogStick_Left, -1, inputX, useButtonMapping);
-    inputX = get_axis_state(profile, &profile->AnalogStick_Right, 1, inputX, useButtonMapping);
+    bool upPressed = false, downPressed = false, leftPressed = false, rightPressed = false;
+
+    inputY = get_axis_state(profile, &profile->AnalogStick_Up,    1, inputY, useButtonMapping, upPressed);
+    inputY = get_axis_state(profile, &profile->AnalogStick_Down, -1, inputY, useButtonMapping, downPressed);
+    if (upPressed && downPressed) inputY = 0;
+
+    inputX = get_axis_state(profile, &profile->AnalogStick_Left, -1, inputX, useButtonMapping, leftPressed);
+    inputX = get_axis_state(profile, &profile->AnalogStick_Right, 1, inputX, useButtonMapping, rightPressed);
+    if (leftPressed && rightPressed) inputX = 0;
 
     // Scale each axis independently (like USBtoN64v2)
     // Range determines the maximum output: 100% = 127 (linear scale)
@@ -1381,9 +1416,6 @@ EXPORT void CALL RomClosed(void)
     l_HotkeysThread->SetState(HotkeysThreadState::RomClosed);
     l_HasControlInfo = false;
     close_controllers();
-#ifdef VRU
-    QuitVRU();
-#endif // VRU
 }
 
 EXPORT void CALL SDL_KeyDown(int keymod, int keysym)

@@ -30,11 +30,22 @@ if (KCA_DRAG_DROP)
 endif(KCA_DRAG_DROP)
 
 if (NETPLAY)
-    find_package(Qt6 COMPONENTS WebSockets REQUIRED)
+    find_package(Qt6 COMPONENTS WebSockets Network REQUIRED)
     add_definitions(-DNETPLAY)
 endif(NETPLAY)
 
 find_package(SDL3 REQUIRED)
+if (WIN32 AND NETPLAY)
+    find_package(OpenGL REQUIRED)
+endif()
+
+# hidapi for raphnet adapter input test dialog
+find_package(PkgConfig REQUIRED)
+if (WIN32)
+    pkg_check_modules(HIDAPI REQUIRED hidapi)
+else()
+    pkg_check_modules(HIDAPI REQUIRED hidapi-hidraw)
+endif()
 
 set(RMG_SOURCES
     UserInterface/MainWindow.cpp
@@ -65,6 +76,7 @@ set(RMG_SOURCES
     UserInterface/Dialog/RomInfoDialog.ui
     UserInterface/Dialog/AboutDialog.cpp
     UserInterface/Dialog/AboutDialog.ui
+    UserInterface/Dialog/RaphnetInputDialog.cpp
     UserInterface/Dialog/LogDialog.cpp
     UserInterface/Dialog/LogDialog.ui
     UserInterface/NoFocusDelegate.cpp
@@ -95,6 +107,13 @@ endif(UPDATER)
 if (NETPLAY)
     list(APPEND RMG_SOURCES
         UserInterface/KailleraSessionManager.cpp
+        UserInterface/KailleraUIBridge.cpp
+        UserInterface/Dialog/Kaillera/KailleraNetplayDialog.cpp
+        UserInterface/Dialog/Kaillera/KailleraPlaybackDialog.cpp
+        UserInterface/Dialog/Kaillera/KailleraServerBrowserDialog.cpp
+        UserInterface/Dialog/Kaillera/KailleraOptionsDialog.cpp
+        UserInterface/Dialog/Kaillera/KailleraP2PDialog.cpp
+        UserInterface/Dialog/Kaillera/KailleraWaitingGamesDialog.cpp
         UserInterface/Dialog/Netplay/NetplayCommon.cpp
         UserInterface/Dialog/Netplay/CreateNetplaySessionDialog.cpp
         UserInterface/Dialog/Netplay/CreateNetplaySessionDialog.ui
@@ -112,6 +131,17 @@ if (NETPLAY)
         UserInterface/Widget/Netplay/CreateNetplaySessionEmptyWidget.cpp
         UserInterface/Widget/Netplay/CreateNetplaySessionEmptyWidget.ui
     )
+    if (WIN32)
+        list(APPEND RMG_SOURCES
+            Utilities/KailleraExport/KrecMp4Export.cpp
+            Utilities/KailleraExport/KrecParser.cpp
+            Utilities/KailleraExport/EmulatorProxy.cpp
+            Utilities/KailleraExport/PifReplay.cpp
+            Utilities/KailleraExport/FrameCapture.cpp
+            Utilities/KailleraExport/FfmpegEncoder.cpp
+            Utilities/KailleraExport/VidExtProxy.cpp
+        )
+    endif(WIN32)
 endif(NETPLAY)
 
 set_source_files_properties(${IMGUI_SOURCES} PROPERTIES GENERATED TRUE)
@@ -137,15 +167,19 @@ if (PORTABLE_INSTALL)
     )
 endif(PORTABLE_INSTALL)
 
-target_include_directories(RMG PRIVATE 
+target_include_directories(RMG PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../
     ${IMGUI_DIR}
+    ${HIDAPI_INCLUDE_DIRS}
 )
 
-target_link_libraries(RMG Qt6::Gui Qt6::Widgets)
-target_link_libraries(RMG SDL3::SDL3)
+target_link_libraries(RMG Qt6::Gui Qt6::Widgets ${HIDAPI_LIBRARIES} SDL3::SDL3)
+
+if (WIN32)
+    target_link_libraries(RMG opengl32 gdi32 user32)
+endif(WIN32)
 
 if (NOT WIN32)
     target_link_libraries(RMG Qt6::DBus)
@@ -160,5 +194,11 @@ if (KCA_DRAG_DROP)
 endif(KCA_DRAG_DROP)
 
 if (NETPLAY)
-    target_link_libraries(RMG Qt6::WebSockets)
+    target_link_libraries(RMG Qt6::WebSockets Qt6::Network)
+    if (WIN32)
+        target_link_libraries(RMG SDL3::SDL3 OpenGL::GL)
+        target_include_directories(RMG PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../n02
+        )
+    endif(WIN32)
 endif(NETPLAY)

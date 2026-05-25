@@ -17,6 +17,7 @@
 
 #include <RMG-Core/RomSettings.hpp>
 #include <RMG-Core/RomHeader.hpp>
+#include <RMG-Core/Raphnet.hpp>
 #include <RMG-Core/Core.hpp>
 
 #include <QInputDialog>
@@ -27,6 +28,7 @@
 #include <QPixmap>
 
 #include <SDL3/SDL.h>
+#include <cmath>
 
 using namespace UserInterface::Layout;
 using namespace UserInterface::Widget;
@@ -76,7 +78,8 @@ ControllerWidget::ControllerWidget(QWidget* parent, EventFilter* eventFilter) : 
         { N64ControllerButton::CButtonRight, this->cbuttonRightButton },
         { N64ControllerButton::LeftShoulder, this->leftShoulderButton },
         { N64ControllerButton::RightShoulder, this->rightShoulderButton },
-        { N64ControllerButton::ZTrigger, this->zTriggerButton }
+        { N64ControllerButton::ZTrigger, this->zTriggerButton },
+        { N64ControllerButton::ZTrigger2, this->zTrigger2Button }
     });
 
     this->joystickWidgetMappings.append(
@@ -103,6 +106,7 @@ ControllerWidget::ControllerWidget(QWidget* parent, EventFilter* eventFilter) : 
         { this->leftShoulderButton, SettingsID::Input_LeftShoulder_InputType, SettingsID::Input_LeftShoulder_Name, SettingsID::Input_LeftShoulder_Data, SettingsID::Input_LeftShoulder_ExtraData },
         { this->rightShoulderButton, SettingsID::Input_RightShoulder_InputType, SettingsID::Input_RightShoulder_Name, SettingsID::Input_RightShoulder_Data, SettingsID::Input_RightShoulder_ExtraData },
         { this->zTriggerButton, SettingsID::Input_ZTrigger_InputType, SettingsID::Input_ZTrigger_Name, SettingsID::Input_ZTrigger_Data, SettingsID::Input_ZTrigger_ExtraData },
+        { this->zTrigger2Button, SettingsID::Input_ZTrigger2_InputType, SettingsID::Input_ZTrigger2_Name, SettingsID::Input_ZTrigger2_Data, SettingsID::Input_ZTrigger2_ExtraData },
         { this->analogStickUpButton, SettingsID::Input_AnalogStickUp_InputType, SettingsID::Input_AnalogStickUp_Name, SettingsID::Input_AnalogStickUp_Data, SettingsID::Input_AnalogStickUp_ExtraData },
         { this->analogStickDownButton, SettingsID::Input_AnalogStickDown_InputType, SettingsID::Input_AnalogStickDown_Name, SettingsID::Input_AnalogStickDown_Data, SettingsID::Input_AnalogStickDown_ExtraData },
         { this->analogStickLeftButton, SettingsID::Input_AnalogStickLeft_InputType, SettingsID::Input_AnalogStickLeft_Name, SettingsID::Input_AnalogStickLeft_Data, SettingsID::Input_AnalogStickLeft_ExtraData },
@@ -172,6 +176,7 @@ ControllerWidget::ControllerWidget(QWidget* parent, EventFilter* eventFilter) : 
         this->leftShoulderButton,
         this->rightShoulderButton,
         this->zTriggerButton,
+        this->zTrigger2Button,
         // buttons
         this->aButton,
         this->bButton,
@@ -220,6 +225,7 @@ void ControllerWidget::initializeMappingButtons()
         { this->leftShoulderButton, this->leftShoulderAddButton, this->leftShoulderRemoveButton },
         { this->rightShoulderButton, this->rightShoulderAddButton, this->rightShoulderRemoveButton },
         { this->zTriggerButton, this->zTriggerAddButton, this->zTriggerRemoveButton },
+        { this->zTrigger2Button, this->zTrigger2AddButton, this->zTrigger2RemoveButton },
         // buttons
         { this->aButton, this->aAddButton, this->aRemoveButton },
         { this->bButton, this->bAddButton, this->bRemoveButton },
@@ -234,28 +240,48 @@ void ControllerWidget::initializeMappingButtons()
         mapping.removeMappingButton->Initialize(this, mapping.mappingButton);
 
         // clear text & set icon
-        mapping.addMappingButton->setText("");
+        QSize mappingIconSize(20, 16);
+        QSize mappingButtonSize(28, 28);
+        QString iconButtonStyle = QStringLiteral("padding: 0px;");
+        mapping.addMappingButton->hide();
         mapping.removeMappingButton->setText("");
-        mapping.addMappingButton->setIcon(QIcon::fromTheme("add-line"));
         mapping.removeMappingButton->setIcon(QIcon::fromTheme("delete-back-line"));
+        mapping.removeMappingButton->setIconSize(mappingIconSize);
+        mapping.removeMappingButton->setFixedSize(mappingButtonSize);
+        mapping.removeMappingButton->setStyleSheet(iconButtonStyle);
     }
 }
 
 void ControllerWidget::initializeProfileButtons()
 {
+    QSize profileIconSize(20, 16);
+    QSize profileButtonSize(28, 28);
+    QString iconButtonStyle = QStringLiteral("padding: 0px;");
     this->addProfileButton->setText("");
     this->addProfileButton->setIcon(QIcon::fromTheme("add-line"));
+    this->addProfileButton->setIconSize(profileIconSize);
+    this->addProfileButton->setFixedSize(profileButtonSize);
+    this->addProfileButton->setStyleSheet(iconButtonStyle);
     this->removeProfileButton->setText("");
     this->removeProfileButton->setIcon(QIcon::fromTheme("delete-bin-line"));
+    this->removeProfileButton->setIconSize(profileIconSize);
+    this->removeProfileButton->setFixedSize(profileButtonSize);
+    this->removeProfileButton->setStyleSheet(iconButtonStyle);
 }
 
 void ControllerWidget::initializeMiscButtons()
 {
+    QSize iconSize(20, 16);
     this->inputDeviceRefreshButton->setIcon(QIcon::fromTheme("refresh-line"));
+    this->inputDeviceRefreshButton->setIconSize(iconSize);
     this->autoConfigureButton->setIcon(QIcon::fromTheme("magic-line"));
+    this->autoConfigureButton->setIconSize(iconSize);
     this->resetButton->setIcon(QIcon::fromTheme("restart-line"));
+    this->resetButton->setIconSize(iconSize);
     this->optionsButton->setIcon(QIcon::fromTheme("settings-3-line"));
+    this->optionsButton->setIconSize(iconSize);
     this->hotkeysButton->setIcon(QIcon::fromTheme("gamepad-line"));
+    this->hotkeysButton->setIconSize(iconSize);
 }
 
 bool ControllerWidget::isCurrentDeviceKeyboard()
@@ -403,6 +429,8 @@ void ControllerWidget::setPluggedIn(bool value)
         this->analogStickLeftButton, this->analogStickLeftAddButton, this->analogStickLeftRemoveButton,
         this->analogStickRightButton, this->analogStickRightAddButton, this->analogStickRightRemoveButton,
         this->analogStickRangeSlider, this->realN64RangeCheckBox,
+        // axis readout
+        this->axisReadoutGroupBox,
         // cbuttons
         this->cButtonsGroupBox,
         this->cbuttonUpButton, this->cbuttonUpAddButton, this->cbuttonUpRemoveButton,
@@ -414,6 +442,7 @@ void ControllerWidget::setPluggedIn(bool value)
         this->leftShoulderButton, this->leftShoulderAddButton, this->leftShoulderRemoveButton,
         this->rightShoulderButton, this->rightShoulderAddButton, this->rightShoulderRemoveButton,
         this->zTriggerButton, this->zTriggerAddButton, this->zTriggerRemoveButton,
+        this->zTrigger2Button, this->zTrigger2AddButton, this->zTrigger2RemoveButton,
         // buttons
         this->buttonsGroupBox,
         this->aButton, this->aAddButton, this->aRemoveButton,
@@ -430,6 +459,12 @@ void ControllerWidget::setPluggedIn(bool value)
     for (auto& widget : widgetList)
     {
         widget->setEnabled(value);
+    }
+
+    // when plugging in, respect Real N64 Range checkbox state
+    if (value && this->realN64RangeCheckBox->isChecked())
+    {
+        this->analogStickRangeSlider->setEnabled(false);
     }
 
     this->ClearControllerImage();
@@ -633,9 +668,6 @@ void ControllerWidget::CheckInputDeviceSettings(QString sectionQString)
         int deviceNum = CoreSettingsGetIntValue(SettingsID::Input_DeviceNum, section);
         switch (deviceNum)
         {
-        case -4:
-            deviceType = InputDeviceType::EmulateVRU;
-            break;
         case -3:
             deviceType = InputDeviceType::None;
             break;
@@ -750,9 +782,12 @@ void ControllerWidget::on_deadZoneSlider_valueChanged(int value)
 
 void ControllerWidget::on_analogStickRangeSlider_valueChanged(int value)
 {
+    double actualRange = 127.0 * value / 100.0;
     QString title = tr("Analog Stick Range: ");
+    title += QString::number(actualRange, 'f', 1);
+    title += " (";
     title += QString::number(value);
-    title += "%";
+    title += "%)";
 
     this->analogStickRangeGroupBox->setTitle(title);
     this->controllerImageWidget->SetRange(value);
@@ -810,11 +845,10 @@ void ControllerWidget::on_inputDeviceComboBox_currentIndexChanged(int value)
         deviceData.device = { };
     }
 
-    // Check if this is a raphnet adapter and prompt user to switch plugin
+    // Check if this is a raphnet 3.0+ adapter and prompt user to switch plugin
     if (deviceData.device.type == InputDeviceType::Joystick)
     {
-        QString deviceName = QString::fromStdString(deviceData.device.name);
-        if (deviceName.contains("raphnet", Qt::CaseInsensitive))
+        if (isRaphnet3Plus(deviceData.device.name))
         {
             QMessageBox::StandardButton result = QMessageBox::question(
                 this,
@@ -844,8 +878,7 @@ void ControllerWidget::on_inputDeviceComboBox_currentIndexChanged(int value)
     this->autoConfigureButton->setEnabled(deviceData.inputProfile.valid);
 
     // set plugged in state
-    this->setPluggedIn(deviceData.device.type != InputDeviceType::None &&
-                       deviceData.device.type != InputDeviceType::EmulateVRU);
+    this->setPluggedIn(deviceData.device.type != InputDeviceType::None);
 
     // update tooltip
     this->inputDeviceComboBox->setToolTip(this->inputDeviceComboBox->itemText(value));
@@ -1104,7 +1137,6 @@ void ControllerWidget::on_MappingButton_Released(MappingButton* button)
 
 void ControllerWidget::on_AddMappingButton_Released(MappingButton* button)
 {
-    this->addMappingToButton = true;
     button->click();
 }
 
@@ -1117,8 +1149,7 @@ void ControllerWidget::on_MappingButton_TimerFinished(MappingButton* button)
 {
     if (this->currentButton == button)
     {
-        this->currentButton      = nullptr;
-        this->addMappingToButton = false;
+        this->currentButton = nullptr;
     }
 
     button->RestoreState();
@@ -1130,8 +1161,7 @@ void ControllerWidget::on_MappingButton_DataSet(MappingButton* button)
 {
     this->enableAllChildren();
     this->removeDuplicates(button);
-    this->currentButton      = nullptr;
-    this->addMappingToButton = false;
+    this->currentButton = nullptr;
 }
 
 void ControllerWidget::on_MappingButton_Resized(MappingButton* button, QResizeEvent* event)
@@ -1157,6 +1187,7 @@ void ControllerWidget::on_MappingButton_Resized(MappingButton* button, QResizeEv
         this->leftShoulderAddButton, this->leftShoulderRemoveButton,
         this->rightShoulderAddButton, this->rightShoulderRemoveButton,
         this->zTriggerAddButton, this->zTriggerRemoveButton,
+        this->zTrigger2AddButton, this->zTrigger2RemoveButton,
         // buttons
         this->aAddButton, this->aRemoveButton,
         this->bAddButton, this->bRemoveButton,
@@ -1241,24 +1272,12 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
             {
                 if (sdlButtonPressed)
                 {
-                    if (this->addMappingToButton)
-                    {
-                        this->currentButton->AddInputData(
-                            inputType,
-                            sdlButton,
-                            0,
-                            sdlButtonName
-                        );
-                    }
-                    else
-                    {
-                        this->currentButton->SetInputData(
-                            inputType,
-                            sdlButton,
-                            0,
-                            sdlButtonName
-                        );
-                    }
+                    this->currentButton->SetInputData(
+                        inputType,
+                        sdlButton,
+                        0,
+                        sdlButtonName
+                    );
                 }
                 break;
             }
@@ -1287,7 +1306,7 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
                                     100 :
                                     -100
                             );
-                            this->controllerImageWidget->SetYAxisState(sdlButtonPressed ? value : 0);
+                            // axis state updated by updateAxisReadout()
                         } break;
 
                         case InputAxisDirection::Left:
@@ -1298,7 +1317,7 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
                                     100 :
                                     -100
                             );
-                            this->controllerImageWidget->SetXAxisState(sdlButtonPressed ? value : 0);
+                            // axis state updated by updateAxisReadout()
                         } break;
 
                         default:
@@ -1334,24 +1353,12 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
             {
                 if (!sdlHatCentered)
                 {
-                    if (this->addMappingToButton)
-                    {
-                        this->currentButton->AddInputData(
-                            inputType,
-                            sdlHat,
-                            sdlHatDirection,
-                            sdlHatName
-                        );
-                    }
-                    else
-                    {
-                        this->currentButton->SetInputData(
-                            inputType,
-                            sdlHat,
-                            sdlHatDirection,
-                            sdlHatName
-                        );
-                    }
+                    this->currentButton->SetInputData(
+                        inputType,
+                        sdlHat,
+                        sdlHatDirection,
+                        sdlHatName
+                    );
                 }
                 break;
             }
@@ -1410,11 +1417,11 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
 
                                 if (!sdlHatCentered && sdlHatDirection == direction)
                                 {
-                                    this->controllerImageWidget->SetYAxisState(value);
+                                    // axis state updated by updateAxisReadout()
                                 }
                                 else
                                 {
-                                    this->controllerImageWidget->SetYAxisState(0);
+                                    // axis state updated by updateAxisReadout()
                                 }
                             } break;
 
@@ -1429,11 +1436,11 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
 
                                 if (!sdlHatCentered && sdlHatDirection == direction)
                                 {
-                                    this->controllerImageWidget->SetXAxisState(value);
+                                    // axis state updated by updateAxisReadout()
                                 }
                                 else
                                 {
-                                    this->controllerImageWidget->SetXAxisState(0);
+                                    // axis state updated by updateAxisReadout()
                                 }
                             } break;
 
@@ -1502,24 +1509,12 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
             {
                 if (sdlAxisButtonPressed)
                 {
-                    if (this->addMappingToButton)
-                    {
-                        this->currentButton->AddInputData(
-                            inputType, 
-                            sdlAxis,
-                            sdlAxisDirection,
-                            sdlAxisName
-                        );
-                    }
-                    else
-                    {
-                        this->currentButton->SetInputData(
-                            inputType, 
-                            sdlAxis,
-                            sdlAxisDirection,
-                            sdlAxisName
-                        );
-                    }
+                    this->currentButton->SetInputData(
+                        inputType,
+                        sdlAxis,
+                        sdlAxisDirection,
+                        sdlAxisName
+                    );
                 }
                 break;
             }
@@ -1551,23 +1546,7 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
                 {
                     const int value = -(static_cast<double>(sdlAxisValue) / SDL_AXIS_PEAK * 100);
 
-                    switch (joystick.direction)
-                    {
-                        case InputAxisDirection::Up:
-                        case InputAxisDirection::Down:
-                        {
-                            this->controllerImageWidget->SetYAxisState(value);
-                        } break;
-
-                        case InputAxisDirection::Left:
-                        case InputAxisDirection::Right:
-                        {
-                            this->controllerImageWidget->SetXAxisState(value);
-                        } break;
-
-                        default:
-                            break;
-                    }
+                    // axis state updated by updateAxisReadout()
                 }
             }
         } break;
@@ -1585,29 +1564,20 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
             const SDL_Scancode sdlButton = static_cast<SDL_Scancode>(event->key.scancode);
             const bool sdlButtonPressed = (event->type == SDL_EVENT_KEY_DOWN);
 
+            // Track keyboard state for axis readout
+            this->m_KeyboardState[sdlButton] = sdlButtonPressed;
+
             // handle button widget
             if (this->currentButton != nullptr)
             {
                 if (sdlButtonPressed)
                 {
-                    if (this->addMappingToButton)
-                    {
-                        this->currentButton->AddInputData(
-                            InputType::Keyboard, 
-                            sdlButton,
-                            0,
-                            SDL_GetScancodeName(sdlButton)
-                        );
-                    }
-                    else
-                    {
-                        this->currentButton->SetInputData(
-                            InputType::Keyboard, 
-                            sdlButton,
-                            0,
-                            SDL_GetScancodeName(sdlButton)
-                        );
-                    }
+                    this->currentButton->SetInputData(
+                        InputType::Keyboard,
+                        sdlButton,
+                        0,
+                        SDL_GetScancodeName(sdlButton)
+                    );
                 }
                 break;
             }
@@ -1636,7 +1606,7 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
                                     100 :
                                     -100
                             );
-                            this->controllerImageWidget->SetYAxisState(sdlButtonPressed ? value : 0);
+                            // axis state updated by updateAxisReadout()
                         } break;
 
                         case InputAxisDirection::Left:
@@ -1647,7 +1617,7 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
                                     100 :
                                     -100
                             );
-                            this->controllerImageWidget->SetXAxisState(sdlButtonPressed ? value : 0);
+                            // axis state updated by updateAxisReadout()
                         } break;
 
                         default:
@@ -1667,6 +1637,117 @@ void ControllerWidget::on_MainDialog_SdlEvent(SDL_Event* event)
 void ControllerWidget::on_MainDialog_SdlEventPollFinished()
 {
     this->controllerImageWidget->UpdateImage();
+    this->updateAxisReadout();
+}
+
+// Helper: read the current state of a mapped input (button/axis/keyboard)
+static double readMappedAxisInput(MappingButton* button, SDL_Joystick* joystick, SDL_Gamepad* gamepad, int direction, const std::unordered_map<int, bool>& keyState)
+{
+    std::vector<int> types = button->GetInputType();
+    std::vector<int> data = button->GetInputData();
+    std::vector<int> extra = button->GetExtraInputData();
+    bool buttonState = false;
+    double axisState = 0.0;
+
+    for (size_t i = 0; i < types.size(); i++)
+    {
+        switch (static_cast<InputType>(types[i]))
+        {
+            case InputType::GamepadButton:
+                if (gamepad)
+                    buttonState |= SDL_GetGamepadButton(gamepad, static_cast<SDL_GamepadButton>(data[i]));
+                break;
+            case InputType::GamepadAxis:
+            {
+                if (!gamepad) break;
+                double val = SDL_GetGamepadAxis(gamepad, static_cast<SDL_GamepadAxis>(data[i]));
+                if (val < -32767.0) val = -32767.0;
+                if (extra[i] ? val > 0 : val < 0)
+                {
+                    val = std::abs(val / SDL_AXIS_PEAK) * direction;
+                    axisState = val;
+                }
+            } break;
+            case InputType::JoystickButton:
+                if (joystick)
+                    buttonState |= SDL_GetJoystickButton(joystick, data[i]);
+                break;
+            case InputType::JoystickHat:
+                if (joystick)
+                    buttonState |= (SDL_GetJoystickHat(joystick, data[i]) & extra[i]) ? true : false;
+                break;
+            case InputType::JoystickAxis:
+            {
+                if (!joystick) break;
+                double val = SDL_GetJoystickAxis(joystick, data[i]);
+                if (val < -32767.0) val = -32767.0;
+                if (extra[i] ? val > 0 : val < 0)
+                {
+                    val = std::abs(val / SDL_AXIS_PEAK) * direction;
+                    axisState = val;
+                }
+            } break;
+            case InputType::Keyboard:
+            {
+                auto it = keyState.find(data[i]);
+                if (it != keyState.end() && it->second)
+                    buttonState = true;
+            } break;
+            default:
+                break;
+        }
+    }
+
+    if (buttonState)
+        return direction;
+    return axisState;
+}
+
+void ControllerWidget::updateAxisReadout()
+{
+    // Read mapped analog stick inputs (works with any input type: keyboard, gamepad, joystick)
+    double inputY = readMappedAxisInput(this->analogStickUpButton, this->currentJoystick, this->currentGamepad, 1, this->m_KeyboardState);
+    double inputYDown = readMappedAxisInput(this->analogStickDownButton, this->currentJoystick, this->currentGamepad, -1, this->m_KeyboardState);
+    if (inputY != 0.0 && inputYDown != 0.0)
+        inputY = 0.0;
+    else if (inputYDown != 0.0)
+        inputY = inputYDown;
+
+    double inputX = readMappedAxisInput(this->analogStickRightButton, this->currentJoystick, this->currentGamepad, 1, this->m_KeyboardState);
+    double inputXLeft = readMappedAxisInput(this->analogStickLeftButton, this->currentJoystick, this->currentGamepad, -1, this->m_KeyboardState);
+    if (inputX != 0.0 && inputXLeft != 0.0)
+        inputX = 0.0;
+    else if (inputXLeft != 0.0)
+        inputX = inputXLeft;
+
+    // Apply deadzone and range (same formula as main.cpp)
+    double deadzone = static_cast<double>(this->deadZoneSlider->value()) / 100.0;
+    double range = static_cast<double>(this->analogStickRangeSlider->value());
+    double n64Max = 127.0 * (range / 100.0);
+
+    auto scaleAxis = [](double input, double dz, double max) -> int {
+        double absInput = std::abs(input);
+        if (absInput <= dz) return 0;
+        double scaled = (absInput - dz) / (1.0 - dz) * max;
+        int result = static_cast<int>(std::min(scaled, max));
+        return (input >= 0) ? result : -result;
+    };
+
+    int xVal = scaleAxis(inputX, deadzone, n64Max);
+    int yVal = scaleAxis(inputY, deadzone, n64Max);
+
+    this->axisReadoutXValue->setText(QString::number(xVal));
+    this->axisReadoutYValue->setText(QString::number(yVal));
+    this->axisReadoutXBar->setValue(xVal);
+    this->axisReadoutYBar->setValue(yVal);
+
+    // Update the controller image to match the actual N64 output values
+    // Convert from N64 range (max ~127) to image range (-100 to 100)
+    int imgX = (n64Max > 0) ? static_cast<int>(xVal * 100.0 / 127.0) : 0;
+    int imgY = (n64Max > 0) ? static_cast<int>(yVal * 100.0 / 127.0) : 0;
+    // Image convention: positive = Left/Up (viewbox shift inverts rendering)
+    this->controllerImageWidget->SetXAxisState(-imgX);
+    this->controllerImageWidget->SetYAxisState(imgY);
 }
 
 bool ControllerWidget::IsPluggedIn()
@@ -1852,7 +1933,9 @@ void ControllerWidget::LoadSettings(QString sectionQString, bool loadUserProfile
     bool realN64Range = CoreSettingsGetBoolValue(SettingsID::Input_RealN64Range, section);
     this->realN64RangeCheckBox->setChecked(realN64Range);
     this->analogStickRangeSlider->setEnabled(!realN64Range);
-    this->analogStickRangeSlider->setValue(CoreSettingsGetIntValue(SettingsID::Input_Range, section));
+    int rangeValue = CoreSettingsGetIntValue(SettingsID::Input_Range, section);
+    this->analogStickRangeSlider->setValue(rangeValue);
+    this->on_analogStickRangeSlider_valueChanged(rangeValue);
     this->deadZoneSlider->setValue(CoreSettingsGetIntValue(SettingsID::Input_Deadzone, section));
     this->optionsDialogSettings.RemoveDuplicateMappings = CoreSettingsGetBoolValue(SettingsID::Input_RemoveDuplicateMappings, section);
     this->optionsDialogSettings.ControllerPak = CoreSettingsGetIntValue(SettingsID::Input_Pak, section);

@@ -32,13 +32,13 @@ enum class N64ControllerButton
     LeftShoulder,
     RightShoulder,
     ZTrigger,
+    ZTrigger2,
     Invalid
 };
 
 enum class InputDeviceType
 {
     None = 0,
-    EmulateVRU,
     Automatic,
     Keyboard,
     Joystick,

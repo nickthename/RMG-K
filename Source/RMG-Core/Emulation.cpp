@@ -13,6 +13,7 @@
 #include "Emulation.hpp"
 #include "RomHeader.hpp"
 #include "Settings.hpp"
+#include "SaveState.hpp"
 #include "Library.hpp"
 #include "Netplay.hpp"
 #include "Kaillera.hpp"
@@ -21,8 +22,11 @@
 #include "Error.hpp"
 #include "File.hpp"
 #include "Rom.hpp"
+#include "rmgk_gekko.hpp"
 
 #include "m64p/Api.hpp"
+
+#include <cstdlib>
 
 // Windows/POSIX dynamic loading
 #ifdef _WIN32
@@ -30,6 +34,19 @@
 #else
 #include <dlfcn.h>
 #endif
+
+static void setRollbackLoggingEnvironment(void)
+{
+    const bool pifLogging = CoreSettingsGetBoolValue(SettingsID::Rollback_VerbosePifInputLogging);
+    const bool glideLogging = CoreSettingsGetBoolValue(SettingsID::Rollback_VerboseGlideInputLogging);
+#ifdef _WIN32
+    _putenv_s("RMGK_VERBOSE_PIF_INPUT_LOGGING", pifLogging ? "1" : "0");
+    _putenv_s("RMGK_VERBOSE_GLIDE_INPUT_LOGGING", glideLogging ? "1" : "0");
+#else
+    setenv("RMGK_VERBOSE_PIF_INPUT_LOGGING", pifLogging ? "1" : "0", 1);
+    setenv("RMGK_VERBOSE_GLIDE_INPUT_LOGGING", glideLogging ? "1" : "0", 1);
+#endif
+}
 
 // Forward declarations for PIF structures
 extern "C" {
@@ -42,10 +59,15 @@ extern "C" {
         uint8_t* rx;
         uint8_t* rx_buf;
     };
+    enum {
+        PIF_CHANNELS_COUNT = 5,
+        PIF_CONTROLLER_CHANNELS_COUNT = 4
+    };
+
     struct pif {
         uint8_t* base;
         uint8_t* ram;
-        struct pif_channel channels[6];  // PIF_CHANNELS_COUNT = 6
+        struct pif_channel channels[PIF_CHANNELS_COUNT];
     };
 
     // Joybus command constants
@@ -62,13 +84,56 @@ extern "C" {
     typedef void (*pif_sync_callback_t)(struct pif*);
 }
 
+static bool parse_gekko_address(const std::string& address, std::string& remoteAddress, int& remotePort, int& frameDelay, int& predictionWindow)
+{
+    constexpr const char* prefix = "GEKKO|";
+    if (address.rfind(prefix, 0) != 0)
+    {
+        return false;
+    }
+
+    const size_t remoteStart = std::char_traits<char>::length(prefix);
+    const size_t portSeparator = address.find('|', remoteStart);
+    if (portSeparator == std::string::npos)
+    {
+        return false;
+    }
+    const size_t delaySeparator = address.find('|', portSeparator + 1);
+    if (delaySeparator == std::string::npos)
+    {
+        return false;
+    }
+    const size_t predictionSeparator = address.find('|', delaySeparator + 1);
+
+    remoteAddress = address.substr(remoteStart, portSeparator - remoteStart);
+    try
+    {
+        remotePort = std::stoi(address.substr(portSeparator + 1, delaySeparator - portSeparator - 1));
+        if (predictionSeparator == std::string::npos)
+        {
+            frameDelay = std::stoi(address.substr(delaySeparator + 1));
+            predictionWindow = 7;
+        }
+        else
+        {
+            frameDelay = std::stoi(address.substr(delaySeparator + 1, predictionSeparator - delaySeparator - 1));
+            predictionWindow = std::stoi(address.substr(predictionSeparator + 1));
+        }
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    return !remoteAddress.empty() && remotePort > 0 && remotePort <= 65535 && frameDelay >= 0 && predictionWindow >= 1;
+}
+
 //
 // Local Variables
 //
 
 // Frame counter for Kaillera sync (updated via frame callback)
 static int s_CurrentFrame = 0;
-
 
 #ifdef NETPLAY
 // Maximum players supported by Kaillera
@@ -82,6 +147,14 @@ static int s_CachedNumReceived = 0;
 // Track whether we've already synced since the last frame advance
 // This is more reliable than comparing frame numbers due to callback timing
 static bool s_SyncedThisFrame = false;
+
+static bool pif_channel_has_command(const pif_channel& channel)
+{
+    return channel.tx != nullptr &&
+           channel.rx != nullptr &&
+           channel.tx_buf != nullptr &&
+           channel.rx_buf != nullptr;
+}
 #endif
 // Frame callback function
 static void FrameCallback(unsigned int frameIndex)
@@ -98,6 +171,10 @@ static void FrameCallback(unsigned int frameIndex)
 static void KailleraPifSyncCallback(struct pif* pif)
 {
 #ifdef NETPLAY
+    if (rmgk_gekko::is_netplay_session_active()) {
+        return;
+    }
+
     if (!CoreHasInitKaillera()) {
         return;
     }
@@ -111,9 +188,8 @@ static void KailleraPifSyncCallback(struct pif* pif)
 
     // Check if this is a controller read command for channel 0 (local player)
     // We only want to sync on actual input reads, not status queries or other commands
-    bool isControllerRead = (pif->channels[0].tx &&
-                             pif->channels[0].tx_buf[0] == JCMD_CONTROLLER_READ &&
-                             pif->channels[0].rx_buf != NULL);
+    bool isControllerRead = (pif_channel_has_command(pif->channels[0]) &&
+                             pif->channels[0].tx_buf[0] == JCMD_CONTROLLER_READ);
 
     // Only sync with Kaillera on controller read commands, and only once per frame
     // This prevents syncing on JCMD_STATUS which would send zero input
@@ -159,43 +235,49 @@ static void KailleraPifSyncCallback(struct pif* pif)
         }
     }
 
-    // Write cached synchronized inputs to PIF RAM for all netplay players
-    // (All polls within the same frame use the cached data)
-    if (s_CachedNumReceived > 0) {
-        for (int i = 0; i < s_CachedNumReceived && i < MAX_PLAYERS; i++) {
-            if (pif->channels[i].tx && pif->channels[i].rx != NULL) {
-                // Always clear error bits to show controller as connected
-                *pif->channels[i].rx &= ~0xC0;
+    // Write synchronized inputs to PIF RAM for all netplay players.
+    // JCMD_STATUS/JCMD_RESET are handled unconditionally so games detect
+    // controllers even before the first Kaillera sync (needed for playback
+    // without a physical controller connected).
+    // JCMD_CONTROLLER_READ data injection is gated on cache availability.
+    int numPlayers = CoreGetKailleraNumPlayers();
+    if (numPlayers > PIF_CONTROLLER_CHANNELS_COUNT) {
+        numPlayers = PIF_CONTROLLER_CHANNELS_COUNT;
+    }
 
-                uint8_t cmd = pif->channels[i].tx_buf[0];
+    for (int i = 0; i < numPlayers && i < MAX_PLAYERS; i++) {
+        if (pif_channel_has_command(pif->channels[i])) {
+            // Always clear error bits to show controller as connected
+            *pif->channels[i].rx &= ~0xC0;
 
-                if (cmd == JCMD_STATUS || cmd == JCMD_RESET) {
-                    // Controller detection - force standard controller type response
-                    if (pif->channels[i].rx_buf != NULL) {
-                        uint16_t type = 0x0500; // JDT_JOY_ABS_COUNTERS | JDT_JOY_PORT
-                        pif->channels[i].rx_buf[0] = (uint8_t)(type >> 0);
-                        pif->channels[i].rx_buf[1] = (uint8_t)(type >> 8);
-                        pif->channels[i].rx_buf[2] = 0; // No pak status
-                    }
+            uint8_t cmd = pif->channels[i].tx_buf[0];
+
+            if (cmd == JCMD_STATUS || cmd == JCMD_RESET) {
+                // Controller detection - force standard controller type response
+                if (pif->channels[i].rx_buf != NULL) {
+                    uint16_t type = 0x0500; // JDT_JOY_ABS_COUNTERS | JDT_JOY_PORT
+                    pif->channels[i].rx_buf[0] = (uint8_t)(type >> 0);
+                    pif->channels[i].rx_buf[1] = (uint8_t)(type >> 8);
+                    pif->channels[i].rx_buf[2] = 0; // No pak status
                 }
-                else if (cmd == JCMD_CONTROLLER_READ) {
-                    // Write synced controller input from cache
-                    if (pif->channels[i].rx_buf != NULL) {
-                        uint8_t* rx = pif->channels[i].rx_buf;
-                        rx[0] = (s_CachedSyncBuffer[i] >> 24) & 0xFF;
-                        rx[1] = (s_CachedSyncBuffer[i] >> 16) & 0xFF;
-                        rx[2] = (s_CachedSyncBuffer[i] >> 8) & 0xFF;
-                        rx[3] = s_CachedSyncBuffer[i] & 0xFF;
-                    }
+            }
+            else if (cmd == JCMD_CONTROLLER_READ) {
+                // Write synced controller input from cache (only when populated)
+                if (s_CachedNumReceived > 0 && i < s_CachedNumReceived && pif->channels[i].rx_buf != NULL) {
+                    uint8_t* rx = pif->channels[i].rx_buf;
+                    rx[0] = (s_CachedSyncBuffer[i] >> 24) & 0xFF;
+                    rx[1] = (s_CachedSyncBuffer[i] >> 16) & 0xFF;
+                    rx[2] = (s_CachedSyncBuffer[i] >> 8) & 0xFF;
+                    rx[3] = s_CachedSyncBuffer[i] & 0xFF;
                 }
-                else if (cmd == JCMD_PAK_READ && pif->channels[i].rx_buf != NULL) {
-                    // No controller pak present
-                    pif->channels[i].rx_buf[32] = 255;
-                }
-                else if (cmd == JCMD_PAK_WRITE && pif->channels[i].rx_buf != NULL) {
-                    // No controller pak present
-                    pif->channels[i].rx_buf[0] = 255;
-                }
+            }
+            else if (cmd == JCMD_PAK_READ && pif->channels[i].rx_buf != NULL) {
+                // No controller pak present
+                pif->channels[i].rx_buf[32] = 255;
+            }
+            else if (cmd == JCMD_PAK_WRITE && pif->channels[i].rx_buf != NULL) {
+                // No controller pak present
+                pif->channels[i].rx_buf[0] = 255;
             }
         }
     }
@@ -373,14 +455,14 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     std::string address, int port, int player)
 {
     std::string error;
-    m64p_error  m64p_ret;
+    m64p_error  m64p_ret = M64ERR_SUCCESS;
     bool        netplay_ret = false;
     CoreRomType type;
     bool        netplay = !address.empty();
 
 #ifdef NETPLAY
     // Apply RSP plugin override and reload plugins BEFORE ROM open
-    if (netplay && address == "KAILLERA")
+    if (netplay && (address == "KAILLERA" || address.rfind("GEKKO|", 0) == 0))
     {
         apply_kaillera_rsp_override();
         CoreApplyPluginSettings();  // Force reload with HLE RSP
@@ -458,10 +540,13 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     // apply pif rom settings
     apply_pif_rom_settings();
 
+    const bool localRollbackEnabled = !netplay &&
+        CoreSettingsGetBoolValue(SettingsID::Rollback_EnableLocalTesting);
+
 #ifdef NETPLAY
-    // Apply deterministic settings AFTER all overlays for Kaillera netplay
-    // This ensures user/game-specific settings don't override critical sync settings
-    if (netplay && address == "KAILLERA")
+    // Apply deterministic settings AFTER all overlays for synchronized netplay or
+    // explicit local rollback testing.
+    if (localRollbackEnabled || (netplay && (address == "KAILLERA" || address.rfind("GEKKO|", 0) == 0)))
     {
         apply_kaillera_deterministic_settings();
     }
@@ -486,6 +571,39 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
                 netplay_ret = true;
             }
         }
+        else if (address.rfind("GEKKO|", 0) == 0)
+        {
+            std::string remoteAddress;
+            int remotePort = 0;
+            int frameDelay = 0;
+            int predictionWindow = 7;
+            if (!parse_gekko_address(address, remoteAddress, remotePort, frameDelay, predictionWindow))
+            {
+                CoreSetError("CoreStartEmulation: invalid GekkoNet session parameters");
+                m64p_ret = M64ERR_INPUT_INVALID;
+                netplay_ret = false;
+            }
+            else if (!rmgk_gekko::set_deterministic(true))
+            {
+                m64p_ret = M64ERR_SYSTEM_FAIL;
+                netplay_ret = false;
+            }
+            else
+            {
+                CoreSettingsSetValue(SettingsID::Core_CPU_Emulator, 2);
+                netplay_ret = rmgk_gekko::start_p2p_session("rmgk-gekko",
+                    2, static_cast<int>(sizeof(uint32_t)), player, static_cast<unsigned short>(port),
+                    remoteAddress.c_str(), static_cast<unsigned short>(remotePort), frameDelay, predictionWindow);
+                if (!netplay_ret)
+                {
+                    if (CoreGetError().empty())
+                    {
+                        CoreSetError("CoreStartEmulation: GekkoNet session initialization failed");
+                    }
+                    m64p_ret = M64ERR_SYSTEM_FAIL;
+                }
+            }
+        }
         else
         {
             // Legacy netplay (Mupen64Plus built-in)
@@ -498,9 +616,39 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
     }
 #endif // NETPLAY
 
-    // only start emulation when initializing netplay
-    // is successful or if there's no netplay requested
-    if (!netplay || netplay_ret)
+    bool rollbackExecute = false;
+    if (localRollbackEnabled)
+    {
+        if (!rmgk_gekko::set_deterministic(true))
+        {
+            m64p_ret = M64ERR_SYSTEM_FAIL;
+        }
+        else
+        {
+            CoreSettingsSetValue(SettingsID::Core_CPU_Emulator, 2);
+            netplay_ret = rmgk_gekko::start_local_session("rmgk-gekko-local",
+                2, static_cast<int>(sizeof(uint32_t)), 0);
+            rollbackExecute = netplay_ret;
+            if (!netplay_ret)
+            {
+                if (CoreGetError().empty())
+                {
+                    CoreSetError("CoreStartEmulation: local GekkoNet session initialization failed");
+                }
+                m64p_ret = M64ERR_SYSTEM_FAIL;
+            }
+        }
+    }
+#ifdef NETPLAY
+    else
+    {
+        rollbackExecute = address.rfind("GEKKO|", 0) == 0;
+    }
+#endif
+
+    // only start emulation when initializing netplay/local rollback
+    // is successful or if there's legacy netplay requested
+    if ((!netplay && (!localRollbackEnabled || rollbackExecute)) || (netplay && netplay_ret))
     {
         // Register frame callback for frame counter (used by Kaillera)
         s_CurrentFrame = 0;
@@ -532,17 +680,41 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
 #endif
             if (set_callback)
             {
-                set_callback(KailleraPifSyncCallback);
+                set_callback(address == "KAILLERA" ? KailleraPifSyncCallback : nullptr);
             }
         }
 #endif
 
-        m64p_ret = m64p::Core.DoCommand(M64CMD_EXECUTE, 0, nullptr);
+        CoreRollbackSetVerboseStats(CoreSettingsGetBoolValue(SettingsID::Rollback_VerboseStats));
+        setRollbackLoggingEnvironment();
+
+        if (rollbackExecute)
+        {
+            m64p_ret = rmgk_gekko::execute() ? M64ERR_SUCCESS : M64ERR_SYSTEM_FAIL;
+        }
+        else
+        {
+            m64p_ret = m64p::Core.DoCommand(M64CMD_EXECUTE, 0, nullptr);
+        }
         if (m64p_ret != M64ERR_SUCCESS)
         {
-            error = "CoreStartEmulation m64p::Core.DoCommand(M64CMD_EXECUTE) Failed: ";
-            error += m64p::Core.ErrorMessage(m64p_ret);
+            error = rollbackExecute ?
+                "CoreStartEmulation rollback execute Failed: " :
+                "CoreStartEmulation m64p::Core.DoCommand(M64CMD_EXECUTE) Failed: ";
+            if (!CoreGetError().empty())
+            {
+                error += CoreGetError();
+            }
+            else
+            {
+                error += m64p::Core.ErrorMessage(m64p_ret);
+            }
         }
+    }
+
+    if (!netplay && rollbackExecute)
+    {
+        rmgk_gekko::close_session();
     }
 
 #ifdef NETPLAY
@@ -553,6 +725,10 @@ CORE_EXPORT bool CoreStartEmulation(std::filesystem::path n64rom, std::filesyste
         {
             // Don't shutdown Kaillera here - keep connection alive for restart
             // Kaillera will be shutdown when user leaves the server dialog
+        }
+        else if (address.rfind("GEKKO|", 0) == 0)
+        {
+            rmgk_gekko::close_session();
         }
         else
         {
@@ -587,6 +763,10 @@ CORE_EXPORT bool CoreStopEmulation(void)
     std::string error;
     m64p_error ret;
 
+#ifdef NETPLAY
+    rmgk_gekko::request_stop();
+#endif
+
     if (!m64p::Core.IsHooked())
     {
         return false;
@@ -619,7 +799,7 @@ CORE_EXPORT bool CorePauseEmulation(void)
         return false;
     }
 
-    if (CoreHasInitNetplay() || CoreHasInitKaillera())
+    if (CoreIsSynchronizedNetplayActive())
     {
         return false;
     }
@@ -653,7 +833,7 @@ CORE_EXPORT bool CoreResumeEmulation(void)
         return false;
     }
 
-    if (CoreHasInitNetplay() || CoreHasInitKaillera())
+    if (CoreIsSynchronizedNetplayActive())
     {
         return false;
     }
@@ -670,6 +850,73 @@ CORE_EXPORT bool CoreResumeEmulation(void)
     if (ret != M64ERR_SUCCESS)
     {
         error = "CoreResumeEmulation m64p::Core.DoCommand(M64CMD_RESUME) Failed: ";
+        error += m64p::Core.ErrorMessage(ret);
+        CoreSetError(error);
+    }
+
+    return ret == M64ERR_SUCCESS;
+}
+
+CORE_EXPORT bool CoreAdvanceFrame(void)
+{
+    return CoreAdvanceFrames(1);
+}
+
+CORE_EXPORT bool CoreAdvanceFrames(int frames)
+{
+    return CoreRunFrames(frames, CoreFrameOutput_All);
+}
+
+CORE_EXPORT bool CoreRunFrames(int frames, int flags)
+{
+    std::string error;
+    m64p_error ret;
+
+    if (!m64p::Core.IsHooked())
+    {
+        return false;
+    }
+
+    if (CoreIsSynchronizedNetplayActive())
+    {
+        return false;
+    }
+
+    if (!CoreIsEmulationRunning() && !CoreIsEmulationPaused())
+    {
+        return false;
+    }
+
+    if (frames < 1)
+    {
+        frames = 1;
+    }
+
+    ret = m64p::Core.DoCommand(M64CMD_RUN_FRAMES, frames, &flags);
+    if (ret != M64ERR_SUCCESS)
+    {
+        error = "CoreRunFrames DoCommand(M64CMD_RUN_FRAMES) Failed: ";
+        error += m64p::Core.ErrorMessage(ret);
+        CoreSetError(error);
+    }
+
+    return ret == M64ERR_SUCCESS;
+}
+
+CORE_EXPORT bool CoreSetFrameOutput(int flags)
+{
+    std::string error;
+    m64p_error ret;
+
+    if (!m64p::Core.IsHooked())
+    {
+        return false;
+    }
+
+    ret = m64p::Core.DoCommand(M64CMD_FRAME_OUTPUT_SET, flags, nullptr);
+    if (ret != M64ERR_SUCCESS)
+    {
+        error = "CoreSetFrameOutput DoCommand(M64CMD_FRAME_OUTPUT_SET) Failed: ";
         error += m64p::Core.ErrorMessage(ret);
         CoreSetError(error);
     }
@@ -724,6 +971,28 @@ CORE_EXPORT bool CoreIsEmulationPaused(void)
 {
     m64p_emu_state state = M64EMU_STOPPED;
     return get_emulation_state(state) && state == M64EMU_PAUSED;
+}
+
+CORE_EXPORT bool CoreIsSynchronizedNetplayActive(void)
+{
+    if (CoreHasInitNetplay())
+    {
+        return true;
+    }
+
+    if (CoreHasInitKaillera() && !CoreIsKailleraPlaybackMode())
+    {
+        return true;
+    }
+
+#ifdef NETPLAY
+    if (rmgk_gekko::is_netplay_session_active())
+    {
+        return true;
+    }
+#endif
+
+    return false;
 }
 
 CORE_EXPORT int CoreGetCurrentFrameCount(void)
