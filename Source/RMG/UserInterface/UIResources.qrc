@@ -2,9 +2,9 @@
 <qresource>
   <file>Resource/RMG.png</file>
   <file>Resource/CoverFallback.png</file>
-  <file alias="onboarding/gamecube.svg">Resource/onboarding/gamecube.svg</file>
-  <file alias="onboarding/raphnet.svg">Resource/onboarding/raphnet.svg</file>
-  <file alias="onboarding/usb.svg">Resource/onboarding/usb.svg</file>
+  <file alias="onboarding/gamecube.png">Resource/onboarding/gamecube.png</file>
+  <file alias="onboarding/raphnet.png">Resource/onboarding/raphnet.png</file>
+  <file alias="onboarding/usb.png">Resource/onboarding/usb.png</file>
   <file>Resource/Kaillera.svg</file>
 
   <file alias="icons/black/index.theme">Resource/icons/black/index.theme</file>

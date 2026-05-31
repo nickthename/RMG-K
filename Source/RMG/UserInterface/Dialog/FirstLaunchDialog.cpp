@@ -14,7 +14,6 @@
 #include <QFileDialog>
 #include <QDir>
 #include <QPushButton>
-#include <QGraphicsDropShadowEffect>
 #include <QStyle>
 
 using namespace UserInterface::Dialog;
@@ -57,21 +56,21 @@ FirstLaunchDialog::FirstLaunchDialog(QWidget* parent, InputPluginType currentPlu
         this->setSelectedPluginInternal(static_cast<InputPluginType>(id), true);
     });
 
-    const QSize iconSize(96, 96);
-    const QSize minSize(180, 140);
+    const QSize iconSize(112, 112);
+    const QSize minSize(190, 164);
     const QSizePolicy sizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    this->gamecubeButton->setIcon(QIcon(":/onboarding/gamecube.svg"));
+    this->gamecubeButton->setIcon(QIcon(":/onboarding/gamecube.png"));
     this->gamecubeButton->setIconSize(iconSize);
     this->gamecubeButton->setMinimumSize(minSize);
     this->gamecubeButton->setSizePolicy(sizePolicy);
 
-    this->raphnetButton->setIcon(QIcon(":/onboarding/raphnet.svg"));
+    this->raphnetButton->setIcon(QIcon(":/onboarding/raphnet.png"));
     this->raphnetButton->setIconSize(iconSize);
     this->raphnetButton->setMinimumSize(minSize);
     this->raphnetButton->setSizePolicy(sizePolicy);
 
-    this->usbButton->setIcon(QIcon(":/onboarding/usb.svg"));
+    this->usbButton->setIcon(QIcon(":/onboarding/usb.png"));
     this->usbButton->setIconSize(iconSize);
     this->usbButton->setMinimumSize(minSize);
     this->usbButton->setSizePolicy(sizePolicy);
@@ -86,30 +85,32 @@ FirstLaunchDialog::FirstLaunchDialog(QWidget* parent, InputPluginType currentPlu
     }
 
     this->romDirectoryLineEdit->setReadOnly(true);
+    this->romDirectoryLineEdit->setMinimumHeight(30);
+    this->romDirectoryBrowseButton->setMinimumHeight(30);
 
     connect(this->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(this->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     if (QPushButton* okButton = this->buttonBox->button(QDialogButtonBox::Ok))
     {
-        okButton->setText(tr("Done"));
+        okButton->setText(tr("Finish Setup"));
     }
 
     this->setStyleSheet(
         "QToolButton {"
-        "  border: 1px solid #c9d2dd;"
-        "  border-radius: 12px;"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #f1f4f8);"
-        "  padding: 12px;"
-        "  font-size: 14px;"
+        "  border: 1px solid #b8c0cc;"
+        "  border-radius: 6px;"
+        "  padding: 10px;"
+        "  font-size: 13px;"
         "}"
         "QToolButton:checked {"
-        "  border: 2px solid #2563eb;"
+        "  border: 2px solid #2f74c0;"
+        "  background: #eaf3ff;"
         "}"
         "QLabel[recommendedBadge=\"true\"] {"
-        "  background: #d4edda;"
-        "  color: #155724;"
+        "  background: #e7f5eb;"
+        "  color: #1f6f3a;"
         "  border-radius: 4px;"
-        "  padding: 4px 8px;"
+        "  padding: 3px 8px;"
         "}"
         "QLineEdit {"
         "  padding: 6px;"
@@ -127,19 +128,6 @@ FirstLaunchDialog::FirstLaunchDialog(QWidget* parent, InputPluginType currentPlu
     }
 
     this->setSelectedPluginInternal(initialPlugin, false);
-
-    auto addShadow = [](QToolButton* button)
-    {
-        QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect(button);
-        shadow->setBlurRadius(18.0);
-        shadow->setOffset(0.0, 2.0);
-        shadow->setColor(QColor(0, 0, 0, 35));
-        button->setGraphicsEffect(shadow);
-    };
-
-    addShadow(this->gamecubeButton);
-    addShadow(this->raphnetButton);
-    addShadow(this->usbButton);
 }
 
 void FirstLaunchDialog::SetSelectedPlugin(InputPluginType plugin)
