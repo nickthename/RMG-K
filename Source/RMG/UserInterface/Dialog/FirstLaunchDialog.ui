@@ -8,7 +8,7 @@
   <property name="minimumSize">
    <size>
     <width>780</width>
-    <height>560</height>
+    <height>680</height>
    </size>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -170,6 +170,40 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="detectedDevicesGroupBox">
+     <property name="title">
+      <string>Detected Input Devices</string>
+     </property>
+     <layout class="QVBoxLayout" name="detectedDevicesGroupLayout">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <widget class="QPlainTextEdit" name="detectedDevicesPlainTextEdit">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>92</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>128</height>
+         </size>
+        </property>
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+        <property name="plainText">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="romDirectoryGroupBox">
      <property name="title">
       <string>Select your ROM folder</string>
@@ -224,6 +258,72 @@
       </size>
      </property>
     </spacer>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="debugRecommendationLayout">
+     <property name="spacing">
+      <number>8</number>
+     </property>
+     <item>
+      <widget class="QLabel" name="debugRecommendationLabel">
+       <property name="text">
+        <string>Debug recommendation:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="debugRecommendationComboBox">
+       <item>
+        <property name="text">
+         <string>Auto</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>None</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Raphnet</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>GameCube native</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Other USB</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Mayflash USB mode</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Native access failed</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <spacer name="debugRecommendationSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">

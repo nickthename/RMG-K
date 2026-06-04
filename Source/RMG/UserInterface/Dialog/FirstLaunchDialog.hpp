@@ -12,6 +12,7 @@
 
 #include <QDialog>
 #include <QButtonGroup>
+#include <QStringList>
 
 #include "ui_FirstLaunchDialog.h"
 
@@ -47,15 +48,41 @@ class FirstLaunchDialog : public QDialog, private Ui::FirstLaunchDialog
     void on_romDirectoryBrowseButton_clicked(void);
 
   private:
-    void setRecommendedPlugin(InputPluginType plugin, const QString& reason, bool hasRecommendation);
+    enum class RecommendationStyle
+    {
+        Recommended,
+        Advisory
+    };
+
+    struct InputDetectionReport
+    {
+        bool foundAnySdlDevice = false;
+        bool foundRaphnet = false;
+        bool foundNativeGamecube = false;
+        bool foundBlockedNativeGamecube = false;
+        bool foundUsbModeMayflash = false;
+        bool foundOtherUsb = false;
+        QStringList lines;
+    };
+
+    void setRecommendedPlugin(InputPluginType plugin, const QString& reason, bool hasRecommendation,
+        RecommendationStyle style = RecommendationStyle::Recommended);
+    void clearRecommendationLabels(void);
+    void setRecommendationLabel(InputPluginType plugin, const QString& reason, RecommendationStyle style);
+    void updateDetectedRecommendationLabels(const InputDetectionReport& report);
     void setSelectedPluginInternal(InputPluginType plugin, bool emitSignal);
     void updateButtonStyles(void);
+    void updateDetectedDevices(const InputDetectionReport& report);
+    void applyDebugRecommendationOverride(int index);
 
-    InputPluginType detectRecommendedPlugin(QString& reason, bool& hasRecommendation) const;
+    InputDetectionReport scanInputDevices(void) const;
+    InputPluginType detectRecommendedPlugin(const InputDetectionReport& report, QString& reason, bool& hasRecommendation) const;
 
     QButtonGroup* pluginGroup = nullptr;
     InputPluginType selectedPlugin = InputPluginType::USB;
     InputPluginType recommendedPlugin = InputPluginType::USB;
+    QString recommendedReason;
+    InputDetectionReport detectionReport;
     bool hasRecommendation = false;
 };
 } // namespace Dialog

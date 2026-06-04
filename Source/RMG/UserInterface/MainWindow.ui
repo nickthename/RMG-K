@@ -503,7 +503,7 @@
     <iconset theme="magic-line"/>
    </property>
    <property name="text">
-    <string>Input &amp; ROM Setup...</string>
+    <string>First Time Setup...</string>
    </property>
   </action>
   <action name="action_Help_About">

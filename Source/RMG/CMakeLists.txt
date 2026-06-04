@@ -46,6 +46,7 @@ if (WIN32)
 else()
     pkg_check_modules(HIDAPI REQUIRED hidapi-hidraw)
 endif()
+pkg_check_modules(LIBUSB1 REQUIRED libusb-1.0)
 
 set(RMG_SOURCES
     UserInterface/MainWindow.cpp
@@ -173,9 +174,10 @@ target_include_directories(RMG PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../
     ${IMGUI_DIR}
     ${HIDAPI_INCLUDE_DIRS}
+    ${LIBUSB1_INCLUDE_DIRS}
 )
 
-target_link_libraries(RMG Qt6::Gui Qt6::Widgets ${HIDAPI_LIBRARIES} SDL3::SDL3)
+target_link_libraries(RMG Qt6::Gui Qt6::Widgets ${HIDAPI_LIBRARIES} ${LIBUSB1_LIBRARIES} SDL3::SDL3)
 
 if (WIN32)
     target_link_libraries(RMG opengl32 gdi32 user32)
