@@ -54,18 +54,18 @@ struct GCButtonMapping
     GCInput A       = GCInput::A;
     GCInput B       = GCInput::B;
     GCInput Start   = GCInput::Start;
-    GCInput Z       = GCInput::Z;
+    GCInput Z       = GCInput::RightTrigger;
     GCInput Z2      = GCInput::None;
     GCInput L       = GCInput::LeftTrigger;
-    GCInput R       = GCInput::RightTrigger;
+    GCInput R       = GCInput::Z;
     GCInput DpadUp    = GCInput::DpadUp;
     GCInput DpadDown  = GCInput::DpadDown;
     GCInput DpadLeft  = GCInput::DpadLeft;
     GCInput DpadRight = GCInput::DpadRight;
-    GCInput CUp     = GCInput::CStickUp;
-    GCInput CDown   = GCInput::CStickDown;
-    GCInput CLeft   = GCInput::CStickLeft;
-    GCInput CRight  = GCInput::CStickRight;
+    GCInput CUp     = GCInput::None;
+    GCInput CDown   = GCInput::None;
+    GCInput CLeft   = GCInput::Y;
+    GCInput CRight  = GCInput::X;
 };
 
 inline QString GCInputToString(GCInput input)
