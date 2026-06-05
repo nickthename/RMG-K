@@ -51,6 +51,7 @@ enum class SettingsID
     GUI_LastUpdateCheck,
     GUI_ConfirmExitWhileInGame,
     GUI_DontAskRaphnetPluginSwitch,
+    GUI_AutoInputPlugin,
     GUI_Version,
 
     // Netplay Settings
@@ -550,6 +551,9 @@ enum class SettingsID
     GCAInput_Map_CDown,
     GCAInput_Map_CLeft,
     GCAInput_Map_CRight,
+
+    // raphnetraw Input Plugin Settings
+    RaphnetRaw_Player1AdapterPort,
 
     // Internal Settings (not persisted to config file)
     Internal_InputPluginSwitchRequested,

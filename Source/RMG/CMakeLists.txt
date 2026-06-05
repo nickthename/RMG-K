@@ -5,7 +5,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS Gui Widgets Core REQUIRED)
+find_package(Qt6 COMPONENTS Gui Widgets Core Svg REQUIRED)
 
 if (NOT WIN32)
     find_package(Qt6 REQUIRED COMPONENTS DBus)
@@ -73,6 +73,7 @@ set(RMG_SOURCES
     UserInterface/Dialog/Cheats/ChooseCheatOptionDialog.ui
     UserInterface/Dialog/FirstLaunchDialog.cpp
     UserInterface/Dialog/FirstLaunchDialog.ui
+    UserInterface/Dialog/UnifiedInputDialog.cpp
     UserInterface/Dialog/RomInfoDialog.cpp
     UserInterface/Dialog/RomInfoDialog.ui
     UserInterface/Dialog/AboutDialog.cpp
@@ -92,6 +93,7 @@ set(RMG_SOURCES
     Callbacks.cpp
     VidExt.cpp
     main.cpp
+    ../RMG-Input/UserInterface/Widget/ControllerImageWidget.cpp
 )
 
 if (UPDATER)
@@ -172,12 +174,13 @@ target_include_directories(RMG PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../
+    ${CMAKE_CURRENT_SOURCE_DIR}/../RMG-Input
     ${IMGUI_DIR}
     ${HIDAPI_INCLUDE_DIRS}
     ${LIBUSB1_INCLUDE_DIRS}
 )
 
-target_link_libraries(RMG Qt6::Gui Qt6::Widgets ${HIDAPI_LIBRARIES} ${LIBUSB1_LIBRARIES} SDL3::SDL3)
+target_link_libraries(RMG Qt6::Gui Qt6::Widgets Qt6::Svg ${HIDAPI_LIBRARIES} ${LIBUSB1_LIBRARIES} SDL3::SDL3)
 
 if (WIN32)
     target_link_libraries(RMG opengl32 gdi32 user32)

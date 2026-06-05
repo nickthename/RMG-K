@@ -21,6 +21,7 @@
 #include "Widget/Render/OGLWidget.hpp"
 #include "Widget/Render/VKWidget.hpp"
 
+#include "Dialog/FirstLaunchDialog.hpp"
 #ifdef NETPLAY
 #include "Dialog/Netplay/NetplaySessionDialog.hpp"
 #include "KailleraSessionManager.hpp"
@@ -174,6 +175,8 @@ class MainWindow : public QMainWindow, private Ui::MainWindow
     void showErrorMessage(QString text, QString details = "", bool force = true);
 
     void checkRaphnetPluginMismatch(void);
+    void applyAutomaticInputSelection(void);
+    bool applyInputPluginSelection(Dialog::FirstLaunchDialog::InputPluginType plugin, bool manualSelection);
     bool shouldShowFirstLaunchSetup(void) const;
     bool hasConfiguredInputProfiles(void) const;
     bool isDefaultInputPlugin(void) const;

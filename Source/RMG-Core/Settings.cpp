@@ -73,6 +73,7 @@ static bool l_InputPluginSwitchRequested = false;
 #define SETTING_SECTION_AUDIO       SETTING_SECTION_GUI  " - Audio Plugin"
 #define SETTING_SECTION_INPUT       SETTING_SECTION_GUI  " - Input Plugin"
 #define SETTING_SECTION_GCA         SETTING_SECTION_GUI  " - GameCube Adapter Input Plugin"
+#define SETTING_SECTION_RAPHNETRAW  "RaphnetRaw"
 #define SETTING_SECTION_KAILLERA    SETTING_SECTION_GUI  " Kaillera"
 #define SETTING_SECTION_ROLLBACK    SETTING_SECTION_GUI  " Rollback"
 #define SETTING_SECTION_RSP         "Rsp-HLE"
@@ -198,6 +199,9 @@ static l_Setting get_setting(SettingsID settingId)
         break;
     case SettingsID::GUI_DontAskRaphnetPluginSwitch:
         setting = {SETTING_SECTION_GUI, "DontAskRaphnetPluginSwitch", false};
+        break;
+    case SettingsID::GUI_AutoInputPlugin:
+        setting = {SETTING_SECTION_GUI, "AutoInputPlugin", std::string("")};
         break;
     case SettingsID::GUI_Version:
         setting = {SETTING_SECTION_GUI, "Version", CoreGetVersion()};
@@ -1552,7 +1556,7 @@ static l_Setting get_setting(SettingsID settingId)
         break;
 
     case SettingsID::GCAInput_Deadzone:
-        setting = {SETTING_SECTION_GCA, "Deadzone", 9};
+        setting = {SETTING_SECTION_GCA, "Deadzone", 5};
         break;
     case SettingsID::GCAInput_Sensitivity:
         setting = {SETTING_SECTION_GCA, "Sensitivity", 100};
@@ -1589,7 +1593,7 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GCA, "Map_Start", 5};
         break;
     case SettingsID::GCAInput_Map_Z:
-        setting = {SETTING_SECTION_GCA, "Map_Z", 4};
+        setting = {SETTING_SECTION_GCA, "Map_Z", 13};
         break;
     case SettingsID::GCAInput_Map_Z2:
         setting = {SETTING_SECTION_GCA, "Map_Z2", -1};
@@ -1598,7 +1602,7 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GCA, "Map_L", 12};
         break;
     case SettingsID::GCAInput_Map_R:
-        setting = {SETTING_SECTION_GCA, "Map_R", 13};
+        setting = {SETTING_SECTION_GCA, "Map_R", 4};
         break;
     case SettingsID::GCAInput_Map_DpadUp:
         setting = {SETTING_SECTION_GCA, "Map_DpadUp", 8};
@@ -1613,16 +1617,20 @@ static l_Setting get_setting(SettingsID settingId)
         setting = {SETTING_SECTION_GCA, "Map_DpadRight", 11};
         break;
     case SettingsID::GCAInput_Map_CUp:
-        setting = {SETTING_SECTION_GCA, "Map_CUp", 14};
+        setting = {SETTING_SECTION_GCA, "Map_CUp", -1};
         break;
     case SettingsID::GCAInput_Map_CDown:
-        setting = {SETTING_SECTION_GCA, "Map_CDown", 15};
+        setting = {SETTING_SECTION_GCA, "Map_CDown", -1};
         break;
     case SettingsID::GCAInput_Map_CLeft:
-        setting = {SETTING_SECTION_GCA, "Map_CLeft", 16};
+        setting = {SETTING_SECTION_GCA, "Map_CLeft", 3};
         break;
     case SettingsID::GCAInput_Map_CRight:
-        setting = {SETTING_SECTION_GCA, "Map_CRight", 17};
+        setting = {SETTING_SECTION_GCA, "Map_CRight", 2};
+        break;
+
+    case SettingsID::RaphnetRaw_Player1AdapterPort:
+        setting = {SETTING_SECTION_RAPHNETRAW, "Player1AdapterPort", 1};
         break;
 
     // Internal settings (runtime-only, not persisted)
@@ -2110,6 +2118,29 @@ CORE_EXPORT bool CoreSettingsUpgrade(void)
 
         CoreSettingsSetValue(SettingsID::Rollback_EnableLocalTesting, false);
         CoreSettingsSetValue(SettingsID::Kaillera_FlashOnJoin, true);
+    }
+
+    if (settingsVersion.empty() || settings_version_at_or_before(settingsVersionRaw, 0, 9, 7))
+    {
+        constexpr int oldEquivalentSensitivityAtSliderZero = 90;
+        constexpr int oldEquivalentSensitivityPerHundredSlider = 45;
+        constexpr int minMigratedSensitivity = 100;
+        constexpr int maxMigratedSensitivity = 200;
+        const l_Setting gcaSensitivity = get_setting(SettingsID::GCAInput_Sensitivity);
+
+        if (config_key_exists(gcaSensitivity.Section, gcaSensitivity.Key))
+        {
+            const int sensitivity = CoreSettingsGetIntValue(SettingsID::GCAInput_Sensitivity);
+            if (sensitivity > minMigratedSensitivity)
+            {
+                const int migratedSensitivity =
+                    (((sensitivity - oldEquivalentSensitivityAtSliderZero) * 100) +
+                    (oldEquivalentSensitivityPerHundredSlider / 2)) /
+                    oldEquivalentSensitivityPerHundredSlider;
+                CoreSettingsSetValue(SettingsID::GCAInput_Sensitivity,
+                    std::clamp(migratedSensitivity, minMigratedSensitivity, maxMigratedSensitivity));
+            }
+        }
     }
 
     // save core version

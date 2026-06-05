@@ -11,6 +11,7 @@
 
 #include "UserInterface/Dialog/AboutDialog.hpp"
 #include "UserInterface/Dialog/FirstLaunchDialog.hpp"
+#include "UserInterface/Dialog/UnifiedInputDialog.hpp"
 #include "Dialog/Cheats/CheatsDialog.hpp"
 #include "Dialog/SettingsDialog.hpp"
 #include "Dialog/RomInfoDialog.hpp"
@@ -28,7 +29,6 @@
 #include "n02_client.h"
 #include "kailleraclient.h"
 #endif // NETPLAY
-#include "Dialog/RaphnetInputDialog.hpp"
 #include "UserInterface/EventFilter.hpp"
 #include "Utilities/QtKeyToSdl3Key.hpp"
 #include "Utilities/QtMessageBox.hpp"
@@ -271,6 +271,29 @@ std::string plugin_filename_from_type(InputPluginType type)
         return "RMG-Input.so";
     }
 #endif
+}
+
+constexpr const char* kInputAutoSelectManual = "manual";
+constexpr const char* kInputAutoSelectRaphnet = "raphnet";
+constexpr const char* kInputAutoSelectGamecube = "gamecube";
+
+std::string auto_select_key_from_plugin(InputPluginType plugin)
+{
+    switch (plugin)
+    {
+    case InputPluginType::Raphnet:
+        return kInputAutoSelectRaphnet;
+    case InputPluginType::Gamecube:
+        return kInputAutoSelectGamecube;
+    case InputPluginType::USB:
+    default:
+        return "";
+    }
+}
+
+bool is_auto_select_plugin(InputPluginType plugin)
+{
+    return plugin == InputPluginType::Raphnet || plugin == InputPluginType::Gamecube;
 }
 } // namespace
 
@@ -1690,6 +1713,11 @@ bool MainWindow::Init(QApplication* app, bool showUI, bool launchROM)
         return false;
     }
 
+    if (showUI && !launchROM)
+    {
+        this->applyAutomaticInputSelection();
+    }
+
     if (!CoreApplyPluginSettings())
     {
         this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
@@ -2398,11 +2426,7 @@ void MainWindow::checkRaphnetPluginMismatch(void)
             this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
         }
 
-        // Update input settings button enabled state
-        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input) ||
-            (isRaphnetRawPlugin() && !CoreIsEmulationRunning());
-        this->action_Settings_Input->setEnabled(hasInputConfig);
-        this->action_Toolbar_Input->setEnabled(hasInputConfig);
+        this->updateActions(CoreIsEmulationRunning(), CoreIsEmulationPaused());
     }
     else
     {
@@ -2410,6 +2434,109 @@ void MainWindow::checkRaphnetPluginMismatch(void)
         CoreSettingsSetValue(SettingsID::GUI_DontAskRaphnetPluginSwitch, true);
         CoreSettingsSave();
     }
+}
+
+void MainWindow::applyAutomaticInputSelection(void)
+{
+    const std::string lastAutoSelection = CoreSettingsGetStringValue(SettingsID::GUI_AutoInputPlugin);
+    if (lastAutoSelection == kInputAutoSelectManual)
+    {
+        return;
+    }
+
+    if (this->hasConfiguredInputProfiles())
+    {
+        return;
+    }
+
+    const InputPluginType currentPlugin = plugin_type_from_filename(
+        CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin));
+    const std::string currentAutoKey = auto_select_key_from_plugin(currentPlugin);
+
+    if (lastAutoSelection.empty() && currentPlugin != InputPluginType::USB)
+    {
+        return;
+    }
+
+    if (!lastAutoSelection.empty() && lastAutoSelection != currentAutoKey && currentPlugin != InputPluginType::USB)
+    {
+        return;
+    }
+
+    const Dialog::UnifiedInputDialog::InputDetectionReport report =
+        Dialog::UnifiedInputDialog::ScanInputDevices();
+
+    if (lastAutoSelection == kInputAutoSelectGamecube && report.foundNativeGamecube)
+    {
+        return;
+    }
+
+    if (lastAutoSelection == kInputAutoSelectRaphnet && report.foundRaphnet)
+    {
+        return;
+    }
+
+    InputPluginType recommendedPlugin = InputPluginType::USB;
+    if (report.foundRaphnet)
+    {
+        recommendedPlugin = InputPluginType::Raphnet;
+    }
+    else if (report.foundNativeGamecube)
+    {
+        recommendedPlugin = InputPluginType::Gamecube;
+    }
+
+    if (!is_auto_select_plugin(recommendedPlugin))
+    {
+        return;
+    }
+
+    const std::string recommendedFile = plugin_filename_from_type(recommendedPlugin);
+    if (recommendedFile.empty())
+    {
+        return;
+    }
+
+    CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, recommendedFile);
+    CoreSettingsSetValue(SettingsID::GUI_AutoInputPlugin, auto_select_key_from_plugin(recommendedPlugin));
+    CoreSettingsSave();
+}
+
+bool MainWindow::applyInputPluginSelection(InputPluginType plugin, bool manualSelection)
+{
+    const std::string pluginFile = plugin_filename_from_type(plugin);
+    const std::string currentFile = CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin);
+    if (pluginFile.empty())
+    {
+        return false;
+    }
+
+    if (manualSelection)
+    {
+        CoreSettingsSetValue(SettingsID::GUI_AutoInputPlugin, std::string(kInputAutoSelectManual));
+    }
+    else if (is_auto_select_plugin(plugin))
+    {
+        CoreSettingsSetValue(SettingsID::GUI_AutoInputPlugin, auto_select_key_from_plugin(plugin));
+    }
+
+    if (currentFile == pluginFile)
+    {
+        CoreSettingsSave();
+        return true;
+    }
+
+    CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, pluginFile);
+    CoreSettingsSave();
+
+    if (!CoreApplyPluginSettings())
+    {
+        this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
+        return false;
+    }
+
+    this->updateActions(CoreIsEmulationRunning(), CoreIsEmulationPaused());
+    return true;
 }
 
 bool MainWindow::isDefaultInputPlugin(void) const
@@ -2471,23 +2598,13 @@ bool MainWindow::hasConfiguredInputProfiles(void) const
 
 bool MainWindow::shouldShowFirstLaunchSetup(void) const
 {
-    if (!this->isDefaultInputPlugin())
-    {
-        return false;
-    }
-
-    if (this->hasConfiguredInputProfiles())
-    {
-        return false;
-    }
-
     std::string romDirectory = CoreSettingsGetStringValue(SettingsID::RomBrowser_Directory);
-    if (!romDirectory.empty())
+    if (romDirectory.empty())
     {
-        return false;
+        return true;
     }
 
-    return true;
+    return this->isDefaultInputPlugin() && !this->hasConfiguredInputProfiles();
 }
 
 void MainWindow::showFirstLaunchSetupDialog(bool force, bool autoSelectRecommended)
@@ -2508,35 +2625,10 @@ void MainWindow::showFirstLaunchSetupDialog(bool force, bool autoSelectRecommend
         dialog.SetRomDirectory(QDir::toNativeSeparators(romDirectory));
     }
 
-    auto applyInputPlugin = [this](InputPluginType plugin)
-    {
-        std::string pluginFile = plugin_filename_from_type(plugin);
-        std::string currentFile = CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin);
-
-        if (pluginFile.empty() || currentFile == pluginFile)
-        {
-            return;
-        }
-
-        CoreSettingsSetValue(SettingsID::Core_INPUT_Plugin, pluginFile);
-        CoreSettingsSave();
-
-        if (!CoreApplyPluginSettings())
-        {
-            this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
-            return;
-        }
-
-        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input) ||
-            (isRaphnetRawPlugin() && !CoreIsEmulationRunning());
-        this->action_Settings_Input->setEnabled(hasInputConfig);
-        this->action_Toolbar_Input->setEnabled(hasInputConfig);
-    };
-
     connect(&dialog, &Dialog::FirstLaunchDialog::InputPluginSelected, this,
-        [applyInputPlugin](InputPluginType plugin)
+        [this](InputPluginType plugin)
     {
-        applyInputPlugin(plugin);
+        this->applyInputPluginSelection(plugin, true);
     });
 
     connect(&dialog, &Dialog::FirstLaunchDialog::RomDirectorySelected, this,
@@ -2563,7 +2655,7 @@ void MainWindow::showFirstLaunchSetupDialog(bool force, bool autoSelectRecommend
     }
 
     InputPluginType selectedPlugin = dialog.GetSelectedPlugin();
-    applyInputPlugin(selectedPlugin);
+    this->applyInputPluginSelection(selectedPlugin, true);
     if (selectedPlugin == InputPluginType::Gamecube || selectedPlugin == InputPluginType::USB)
     {
         if (CorePluginsHasConfig(CorePluginType::Input))
@@ -3054,11 +3146,9 @@ void MainWindow::updateActions(bool inEmulation, bool isPaused)
     this->action_Settings_Rsp->setEnabled(CorePluginsHasConfig(CorePluginType::Rsp));
     this->action_Settings_Rsp->setShortcut(QKeySequence(keyBinding));
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_InputSettings));
-    bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input);
-    bool hasRaphnetRawInputTest = isRaphnetRawPlugin() && !inEmulation;
-    this->action_Settings_Input->setEnabled(hasInputConfig || hasRaphnetRawInputTest);
+    this->action_Settings_Input->setEnabled(!inEmulation);
     this->action_Settings_Input->setShortcut(QKeySequence(keyBinding));
-    this->action_Toolbar_Input->setEnabled(hasInputConfig || hasRaphnetRawInputTest);
+    this->action_Toolbar_Input->setEnabled(!inEmulation);
     keyBinding = QString::fromStdString(CoreSettingsGetStringValue(SettingsID::KeyBinding_Settings));
     this->action_Settings_Settings->setShortcut(QKeySequence(keyBinding));
 
@@ -4299,37 +4389,25 @@ void MainWindow::on_Action_Settings_Rsp(void)
 
 void MainWindow::on_Action_Settings_Input(void)
 {
-    // If raphnetraw is the active input plugin, open the input test dialog
-    // (only when no ROM is running to avoid interfering with game input)
-    if (isRaphnetRawPlugin())
+    if (CoreIsEmulationRunning())
     {
-        if (!CoreIsEmulationRunning())
-        {
-            UserInterface::RaphnetInputDialog dialog(this);
-            dialog.exec();
-        }
         return;
     }
 
-    // Clear the plugin switch flag before opening config
-    CoreSettingsSetValue(SettingsID::Internal_InputPluginSwitchRequested, false);
+    InputPluginType currentPlugin = plugin_type_from_filename(
+        CoreSettingsGetStringValue(SettingsID::Core_INPUT_Plugin));
+    Dialog::UnifiedInputDialog dialog(this, currentPlugin);
 
-    CorePluginsOpenConfig(CorePluginType::Input, this);
-
-    // Check if a plugin switch was requested (e.g., raphnet to raphnetraw)
-    if (CoreSettingsGetBoolValue(SettingsID::Internal_InputPluginSwitchRequested))
+    const int result = dialog.exec();
+    if (result == QDialog::Accepted)
     {
-        CoreSettingsSetValue(SettingsID::Internal_InputPluginSwitchRequested, false);
-        if (!CoreApplyPluginSettings())
+        const InputPluginType selectedPlugin = dialog.GetSelectedPlugin();
+        if (selectedPlugin == InputPluginType::Raphnet && dialog.GetSelectedDeviceIndex() >= 0)
         {
-            this->showErrorMessage("CoreApplyPluginSettings() Failed", QString::fromStdString(CoreGetError()));
+            CoreSettingsSetValue(SettingsID::RaphnetRaw_Player1AdapterPort, dialog.GetSelectedDeviceIndex() + 1);
         }
 
-        // Update input settings button enabled state
-        bool hasInputConfig = CorePluginsHasConfig(CorePluginType::Input) ||
-            (isRaphnetRawPlugin() && !CoreIsEmulationRunning());
-        this->action_Settings_Input->setEnabled(hasInputConfig);
-        this->action_Toolbar_Input->setEnabled(hasInputConfig);
+        this->applyInputPluginSelection(selectedPlugin, true);
     }
 }
 

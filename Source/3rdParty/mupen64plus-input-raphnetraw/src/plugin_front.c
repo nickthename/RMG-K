@@ -60,13 +60,18 @@
 
 #ifdef PORTS_1_AND_4
 static int emu2adap_portmap[MAX_CONTROLLERS] = { 0, 2, 3, 1 };
+static const int default_emu2adap_portmap[MAX_CONTROLLERS] = { 0, 2, 3, 1 };
 #undef PLUGIN_NAME
 #define PLUGIN_NAME "raphnetraw ports 1 and 4"
 #else
 static int emu2adap_portmap[MAX_CONTROLLERS] = { 0, 1, 2, 3 };
+static const int default_emu2adap_portmap[MAX_CONTROLLERS] = { 0, 1, 2, 3 };
 #endif
 
 #define EMU_2_ADAP_PORT(a)	((a) == -1 ? -1 : emu2adap_portmap[a])
+
+#define RAPHNETRAW_CONFIG_SECTION "RaphnetRaw"
+#define RAPHNETRAW_CONFIG_PLAYER1_ADAPTER_PORT "Player1AdapterPort"
 
 #if 0
 /* definitions of pointers to Core config functions */
@@ -93,6 +98,10 @@ ptr_ConfigGetUserDataPath       ConfigGetUserDataPath = NULL;
 ptr_ConfigGetUserCachePath      ConfigGetUserCachePath = NULL;
 #endif
 
+ptr_ConfigOpenSection ConfigOpenSection = NULL;
+ptr_ConfigSetDefaultInt ConfigSetDefaultInt = NULL;
+ptr_ConfigGetParamInt ConfigGetParamInt = NULL;
+
 /* static data definitions */
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
@@ -115,6 +124,52 @@ static void DebugMessage(int level, const char *message, ...)
 	(*l_DebugCallback)(l_DebugCallContext, level, msgbuf);
 
 	va_end(args);
+}
+
+static void load_port_map_config(void)
+{
+	m64p_handle configSection = NULL;
+	int player1AdapterPort;
+	int player1AdapterChannel;
+	int swapIndex = -1;
+	int i;
+
+	memcpy(emu2adap_portmap, default_emu2adap_portmap, sizeof(emu2adap_portmap));
+
+	if (!ConfigOpenSection || !ConfigSetDefaultInt || !ConfigGetParamInt) {
+		return;
+	}
+
+	if ((*ConfigOpenSection)(RAPHNETRAW_CONFIG_SECTION, &configSection) != M64ERR_SUCCESS || configSection == NULL) {
+		DebugMessage(M64MSG_WARNING, "Could not open raphnetraw config section");
+		return;
+	}
+
+	(*ConfigSetDefaultInt)(configSection, RAPHNETRAW_CONFIG_PLAYER1_ADAPTER_PORT, 1,
+		"Adapter channel used for emulator controller 1 (1-4)");
+
+	player1AdapterPort = (*ConfigGetParamInt)(configSection, RAPHNETRAW_CONFIG_PLAYER1_ADAPTER_PORT);
+	if (player1AdapterPort < 1 || player1AdapterPort > MAX_CONTROLLERS) {
+		player1AdapterPort = 1;
+	}
+
+	player1AdapterChannel = player1AdapterPort - 1;
+	if (emu2adap_portmap[0] == player1AdapterChannel) {
+		return;
+	}
+
+	for (i = 1; i < MAX_CONTROLLERS; i++) {
+		if (emu2adap_portmap[i] == player1AdapterChannel) {
+			swapIndex = i;
+			break;
+		}
+	}
+
+	if (swapIndex >= 0) {
+		emu2adap_portmap[swapIndex] = emu2adap_portmap[0];
+		emu2adap_portmap[0] = player1AdapterChannel;
+		DebugMessage(M64MSG_INFO, "Mapping emulator controller 1 to raphnet adapter channel %d", player1AdapterPort);
+	}
 }
 
 
@@ -140,7 +195,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         DebugMessage(M64MSG_ERROR, "Core emulator broken; no CoreAPIVersionFunc() function found.");
         return M64ERR_INCOMPATIBLE;
     }
-    
+
     (*CoreAPIVersionFunc)(&ConfigAPIVersion, &DebugAPIVersion, &VidextAPIVersion, NULL);
     if ((ConfigAPIVersion & 0xffff0000) != (CONFIG_API_VERSION & 0xffff0000) || ConfigAPIVersion < CONFIG_API_VERSION)
     {
@@ -180,6 +235,13 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         return M64ERR_INCOMPATIBLE;
     }
 #endif
+
+	ConfigOpenSection = (ptr_ConfigOpenSection) osal_dynlib_getproc(CoreLibHandle, "ConfigOpenSection");
+	ConfigSetDefaultInt = (ptr_ConfigSetDefaultInt) osal_dynlib_getproc(CoreLibHandle, "ConfigSetDefaultInt");
+	ConfigGetParamInt = (ptr_ConfigGetParamInt) osal_dynlib_getproc(CoreLibHandle, "ConfigGetParamInt");
+	if (!ConfigOpenSection || !ConfigSetDefaultInt || !ConfigGetParamInt) {
+		DebugMessage(M64MSG_WARNING, "raphnetraw port mapping config is unavailable");
+	}
 
 	pb_init(DebugMessage);
 
@@ -239,6 +301,8 @@ EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *Plugi
 EXPORT void CALL InitiateControllers(CONTROL_INFO ControlInfo)
 {
     int i, n_controllers, adap_port;
+
+	load_port_map_config();
 
 	n_controllers = pb_scanControllers();
 
