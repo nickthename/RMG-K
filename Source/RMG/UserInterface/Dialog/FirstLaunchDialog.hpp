@@ -70,6 +70,9 @@ class FirstLaunchDialog : public QDialog, private Ui::FirstLaunchDialog
     void clearRecommendationLabels(void);
     void setRecommendationLabel(InputPluginType plugin, const QString& reason, RecommendationStyle style);
     void updateDetectedRecommendationLabels(const InputDetectionReport& report);
+    bool isPluginAvailable(InputPluginType plugin) const;
+    InputPluginType availablePluginOrFallback(InputPluginType plugin) const;
+    void updateAvailableControllerOptions(void);
     void setSelectedPluginInternal(InputPluginType plugin, bool emitSignal);
     void updateButtonStyles(void);
     void updateDetectedDevices(const InputDetectionReport& report);

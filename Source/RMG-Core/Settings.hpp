@@ -529,6 +529,8 @@ enum class SettingsID
     GCAInput_Sensitivity,
     GCAInput_CButtonTreshold,
     GCAInput_TriggerTreshold,
+    GCAInput_LeftTriggerAnalog,
+    GCAInput_RightTriggerAnalog,
     GCAInput_SwapZL,
     GCAInput_Port1Enabled,
     GCAInput_Port2Enabled,

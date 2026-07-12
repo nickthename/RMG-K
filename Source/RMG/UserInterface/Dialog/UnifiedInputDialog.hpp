@@ -28,6 +28,7 @@ class QKeyEvent;
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
+class QRadioButton;
 class QSlider;
 class QTabWidget;
 class QTimer;
@@ -104,9 +105,12 @@ class UnifiedInputDialog : public QDialog
     void setupUi(void);
     QWidget* createControllerPage(int playerIndex);
     void refreshDetection(void);
-    void updateRecommendationLabels(void);
+    void updateWarningLabel(void);
     void refreshUsbDevices(void);
     void updateAllPages(void);
+    bool isPluginAvailable(InputPluginType plugin) const;
+    InputPluginType availablePluginOrFallback(InputPluginType plugin) const;
+    void updateBackendChoices(void);
     void updatePageMode(int pageIndex);
     void updatePageDeviceChoices(int pageIndex);
     void updatePageBindingButtons(int pageIndex);
@@ -123,6 +127,7 @@ class UnifiedInputDialog : public QDialog
     void startListeningForBinding(int pageIndex, int bindingIndex);
     void stopListeningForBinding(bool restoreText);
     void clearBinding(int pageIndex, int bindingIndex);
+    void setGamecubeTriggerAnalog(bool leftTrigger, bool analog);
     void keyPressEvent(QKeyEvent* event) override;
     void keyReleaseEvent(QKeyEvent* event) override;
 
@@ -159,6 +164,8 @@ class UnifiedInputDialog : public QDialog
         QString name;
         QString path;
         QString serial;
+        uint16_t vendorId = 0;
+        uint16_t productId = 0;
     };
 
     struct ControllerPage
@@ -171,6 +178,7 @@ class UnifiedInputDialog : public QDialog
         QGroupBox* mappingsGroupBox = nullptr;
         QGroupBox* usbStickGroupBox = nullptr;
         QGroupBox* gamecubeStickGroupBox = nullptr;
+        QGroupBox* gamecubeTriggerGroupBox = nullptr;
         QGroupBox* portGroupBox = nullptr;
         QVector<QPushButton*> bindingButtons;
         QVector<QPushButton*> clearButtons;
@@ -184,6 +192,10 @@ class UnifiedInputDialog : public QDialog
         QSlider* gamecubeDeadzoneSlider = nullptr;
         QSlider* gamecubeSensitivitySlider = nullptr;
         QSlider* gamecubeTriggerThresholdSlider = nullptr;
+        QRadioButton* gamecubeLeftTriggerDigitalRadioButton = nullptr;
+        QRadioButton* gamecubeLeftTriggerAnalogRadioButton = nullptr;
+        QRadioButton* gamecubeRightTriggerDigitalRadioButton = nullptr;
+        QRadioButton* gamecubeRightTriggerAnalogRadioButton = nullptr;
         QLabel* gamecubeDeadzoneValueLabel = nullptr;
         QLabel* gamecubeSensitivityValueLabel = nullptr;
         QLabel* gamecubeTriggerThresholdValueLabel = nullptr;
@@ -200,10 +212,7 @@ class UnifiedInputDialog : public QDialog
     QVector<ControllerPage*> controllerPages;
     QVector<UsbDeviceChoice> usbDevices;
     QTabWidget* tabWidget = nullptr;
-    QGroupBox* recommendationGroupBox = nullptr;
-    QLabel* raphnetRecommendationLabel = nullptr;
-    QLabel* gamecubeRecommendationLabel = nullptr;
-    QLabel* usbRecommendationLabel = nullptr;
+    QLabel* warningLabel = nullptr;
     QCheckBox* debugDevicesCheckBox = nullptr;
     QGroupBox* detectedDevicesGroupBox = nullptr;
     QPlainTextEdit* detectedDevicesPlainTextEdit = nullptr;
@@ -218,6 +227,7 @@ class UnifiedInputDialog : public QDialog
     libusb_context* usbContext = nullptr;
     libusb_device_handle* gamecubeHandle = nullptr;
     bool gamecubeInterfaceClaimed = false;
+    bool gamecubeSelectedPortMissingController = false;
 
     SDL_Gamepad* sdlGamepad = nullptr;
     SDL_Joystick* sdlJoystick = nullptr;

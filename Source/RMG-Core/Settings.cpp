@@ -1567,6 +1567,12 @@ static l_Setting get_setting(SettingsID settingId)
     case SettingsID::GCAInput_TriggerTreshold:
         setting = {SETTING_SECTION_GCA, "TriggerTreshold", 50};
         break;
+    case SettingsID::GCAInput_LeftTriggerAnalog:
+        setting = {SETTING_SECTION_GCA, "LeftTriggerAnalog", true};
+        break;
+    case SettingsID::GCAInput_RightTriggerAnalog:
+        setting = {SETTING_SECTION_GCA, "RightTriggerAnalog", true};
+        break;
     case SettingsID::GCAInput_SwapZL:
         setting = {SETTING_SECTION_GCA, "GCAInput_SwapZL", true};
         break;

@@ -29,9 +29,10 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QSizePolicy>
-#include <QStackedLayout>
 #include <QStyle>
 #include <QTabWidget>
 #include <QTimer>
@@ -53,6 +54,90 @@ using RecommendationStyle = UserInterface::Dialog::UnifiedInputDialog::Recommend
 using BindingValue = UserInterface::Dialog::UnifiedInputDialog::BindingValue;
 using ControllerPage = UserInterface::Dialog::UnifiedInputDialog::ControllerPage;
 using UsbDeviceChoice = UserInterface::Dialog::UnifiedInputDialog::UsbDeviceChoice;
+
+class ControllerPreviewPanel : public QWidget
+{
+  public:
+    explicit ControllerPreviewPanel(QWidget* parent)
+        : QWidget(parent)
+    {
+        this->setMinimumSize(360, 220);
+        this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+        this->controllerImageWidget = new UserInterface::Widget::ControllerImageWidget(this);
+        this->controllerImageWidget->setMinimumSize(360, 220);
+        this->controllerImageWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+
+    UserInterface::Widget::ControllerImageWidget* ControllerImage(void) const
+    {
+        return this->controllerImageWidget;
+    }
+
+    void SetOutputWidget(QWidget* widget)
+    {
+        this->outputWidget = widget;
+        if (this->outputWidget != nullptr)
+        {
+            this->outputWidget->setParent(this);
+            this->outputWidget->raise();
+            this->positionOutputWidget();
+        }
+    }
+
+  protected:
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QWidget::resizeEvent(event);
+        this->controllerImageWidget->setGeometry(this->rect());
+        this->positionOutputWidget();
+    }
+
+  private:
+    void positionOutputWidget(void)
+    {
+        if (this->outputWidget == nullptr)
+        {
+            return;
+        }
+
+        constexpr double viewBoxWidth = 475.0;
+        constexpr double viewBoxHeight = 450.0;
+        constexpr double outputCenterX = 130.5;
+        constexpr double outputCenterY = 291.1;
+
+        if (this->width() <= 0 || this->height() <= 0)
+        {
+            return;
+        }
+
+        this->outputWidget->adjustSize();
+        this->outputWidget->resize(this->outputWidget->sizeHint());
+        const QSize outputSize = this->outputWidget->size();
+
+        const double scale = std::min(
+            static_cast<double>(this->width()) / viewBoxWidth,
+            static_cast<double>(this->height()) / viewBoxHeight);
+        const double imageWidth = viewBoxWidth * scale;
+        const double imageHeight = viewBoxHeight * scale;
+        const double imageLeft = (static_cast<double>(this->width()) - imageWidth) / 2.0;
+        const double imageTop = (static_cast<double>(this->height()) - imageHeight) / 2.0;
+
+        const int x = std::clamp(
+            static_cast<int>(std::round(imageLeft + outputCenterX * scale - outputSize.width() / 2.0)),
+            0,
+            std::max(0, this->width() - outputSize.width()));
+        const int y = std::clamp(
+            static_cast<int>(std::round(imageTop + outputCenterY * scale - outputSize.height() / 2.0)),
+            0,
+            std::max(0, this->height() - outputSize.height()));
+        this->outputWidget->move(x, y);
+        this->outputWidget->raise();
+    }
+
+    UserInterface::Widget::ControllerImageWidget* controllerImageWidget = nullptr;
+    QWidget* outputWidget = nullptr;
+};
 
 constexpr uint16_t kGameCubeAdapterVendorId = 0x057e;
 constexpr uint16_t kGameCubeAdapterProductId = 0x0337;
@@ -232,19 +317,25 @@ std::string usb_profile_section(int pageIndex)
     return "Rosalie's Mupen GUI - Input Plugin Profile " + std::to_string(pageIndex);
 }
 
-void set_recommendation_badge(QLabel* label, const QString& text, RecommendationStyle style)
+bool usb_device_is_raphnet(const UsbDeviceChoice& device)
 {
-    if (label == nullptr)
-    {
-        return;
-    }
+    return device.vendorId == kRaphnetVendorId || device.name.toLower().contains(QStringLiteral("raphnet"));
+}
 
-    label->setVisible(!text.isEmpty());
-    label->setText(text);
-    label->setProperty("recommendedBadge", style == RecommendationStyle::Recommended);
-    label->setProperty("advisoryBadge", style == RecommendationStyle::Advisory);
-    label->style()->unpolish(label);
-    label->style()->polish(label);
+bool usb_device_is_mayflash_gamecube(const UsbDeviceChoice& device)
+{
+    const QString lowered = device.name.toLower();
+    return lowered.contains(QStringLiteral("mayflash")) &&
+        (lowered.contains(QStringLiteral("gamecube")) || lowered.contains(QStringLiteral("gcn")));
+}
+
+bool usb_device_is_gamecube_like(const UsbDeviceChoice& device)
+{
+    const QString lowered = device.name.toLower();
+    return device.vendorId == kGameCubeAdapterVendorId ||
+        lowered.contains(QStringLiteral("gamecube")) ||
+        lowered.contains(QStringLiteral("gcn")) ||
+        lowered.contains(QStringLiteral("mayflash"));
 }
 
 void show_status(QLabel* label, const QString& text)
@@ -406,14 +497,14 @@ QString gc_input_to_string(GCInput input)
     case GCInput::Y: return QStringLiteral("Y");
     case GCInput::Z: return QStringLiteral("Z");
     case GCInput::Start: return QStringLiteral("Start");
-    case GCInput::L: return QStringLiteral("L");
-    case GCInput::R: return QStringLiteral("R");
+    case GCInput::L: return QStringLiteral("L (digital)");
+    case GCInput::R: return QStringLiteral("R (digital)");
     case GCInput::DpadUp: return QStringLiteral("D-Up");
     case GCInput::DpadDown: return QStringLiteral("D-Down");
     case GCInput::DpadLeft: return QStringLiteral("D-Left");
     case GCInput::DpadRight: return QStringLiteral("D-Right");
-    case GCInput::LeftTrigger: return QStringLiteral("L Trigger");
-    case GCInput::RightTrigger: return QStringLiteral("R Trigger");
+    case GCInput::LeftTrigger: return QStringLiteral("L (analog)");
+    case GCInput::RightTrigger: return QStringLiteral("R (analog)");
     case GCInput::CStickUp: return QStringLiteral("C-Stick Up");
     case GCInput::CStickDown: return QStringLiteral("C-Stick Down");
     case GCInput::CStickLeft: return QStringLiteral("C-Stick Left");
@@ -424,7 +515,38 @@ QString gc_input_to_string(GCInput input)
     }
 }
 
-bool gc_input_active(const GameCubeState& state, GCInput input, double triggerThreshold, double cStickThreshold)
+GCInput gc_input_with_trigger_mode(GCInput input, bool analog)
+{
+    switch (input)
+    {
+    case GCInput::L:
+    case GCInput::LeftTrigger:
+        return analog ? GCInput::LeftTrigger : GCInput::L;
+    case GCInput::R:
+    case GCInput::RightTrigger:
+        return analog ? GCInput::RightTrigger : GCInput::R;
+    default:
+        return input;
+    }
+}
+
+void apply_gamecube_trigger_mode(QVector<int>& bindings, bool leftTrigger, bool analog)
+{
+    const GCInput digitalInput = leftTrigger ? GCInput::L : GCInput::R;
+    const GCInput analogInput = leftTrigger ? GCInput::LeftTrigger : GCInput::RightTrigger;
+
+    for (int& binding : bindings)
+    {
+        const GCInput input = static_cast<GCInput>(binding);
+        if (input == digitalInput || input == analogInput)
+        {
+            binding = static_cast<int>(gc_input_with_trigger_mode(input, analog));
+        }
+    }
+}
+
+bool gc_input_active(const GameCubeState& state, GCInput input,
+    double triggerThreshold, double cStickThreshold, bool leftTriggerAnalog, bool rightTriggerAnalog)
 {
     const int triggerThresh = static_cast<int>(127.0 * triggerThreshold);
     const int cStickThresh = static_cast<int>(127.0 * cStickThreshold);
@@ -443,10 +565,10 @@ bool gc_input_active(const GameCubeState& state, GCInput input, double triggerTh
     case GCInput::DpadUp: return (state.buttons1 & 0x80) != 0;
     case GCInput::Start: return (state.buttons2 & 0x01) != 0;
     case GCInput::Z: return (state.buttons2 & 0x02) != 0;
-    case GCInput::R: return (state.buttons2 & 0x04) != 0;
-    case GCInput::L: return (state.buttons2 & 0x08) != 0;
-    case GCInput::LeftTrigger: return state.leftTrigger > triggerThresh;
-    case GCInput::RightTrigger: return state.rightTrigger > triggerThresh;
+    case GCInput::R: return !rightTriggerAnalog && (state.buttons2 & 0x04) != 0;
+    case GCInput::L: return !leftTriggerAnalog && (state.buttons2 & 0x08) != 0;
+    case GCInput::LeftTrigger: return leftTriggerAnalog && state.leftTrigger > triggerThresh;
+    case GCInput::RightTrigger: return rightTriggerAnalog && state.rightTrigger > triggerThresh;
     case GCInput::CStickUp: return cY > cStickThresh;
     case GCInput::CStickDown: return cY < -cStickThresh;
     case GCInput::CStickLeft: return cX < -cStickThresh;
@@ -455,18 +577,39 @@ bool gc_input_active(const GameCubeState& state, GCInput input, double triggerTh
     }
 }
 
-GCInput detect_gamecube_input(const GameCubeState& state, double triggerThreshold, double cStickThreshold)
+GCInput detect_gamecube_input(const GameCubeState& state,
+    double triggerThreshold, double cStickThreshold, bool leftTriggerAnalog, bool rightTriggerAnalog)
 {
-    const std::array<GCInput, 18> inputs = {{
-        GCInput::A, GCInput::B, GCInput::X, GCInput::Y, GCInput::Z, GCInput::Start,
-        GCInput::L, GCInput::R, GCInput::DpadUp, GCInput::DpadDown, GCInput::DpadLeft,
-        GCInput::DpadRight, GCInput::LeftTrigger, GCInput::RightTrigger, GCInput::CStickUp,
-        GCInput::CStickDown, GCInput::CStickLeft, GCInput::CStickRight
+    const std::array<GCInput, 6> leadingInputs = {{
+        GCInput::A, GCInput::B, GCInput::X, GCInput::Y, GCInput::Z, GCInput::Start
     }};
 
-    for (GCInput input : inputs)
+    for (GCInput input : leadingInputs)
     {
-        if (gc_input_active(state, input, triggerThreshold, cStickThreshold))
+        if (gc_input_active(state, input, triggerThreshold, cStickThreshold, leftTriggerAnalog, rightTriggerAnalog))
+        {
+            return input;
+        }
+    }
+
+    if ((state.buttons2 & 0x08) != 0)
+    {
+        return leftTriggerAnalog ? GCInput::LeftTrigger : GCInput::L;
+    }
+    if ((state.buttons2 & 0x04) != 0)
+    {
+        return rightTriggerAnalog ? GCInput::RightTrigger : GCInput::R;
+    }
+
+    const std::array<GCInput, 10> remainingInputs = {{
+        GCInput::DpadUp, GCInput::DpadDown, GCInput::DpadLeft, GCInput::DpadRight,
+        GCInput::LeftTrigger, GCInput::RightTrigger,
+        GCInput::CStickUp, GCInput::CStickDown, GCInput::CStickLeft, GCInput::CStickRight
+    }};
+
+    for (GCInput input : remainingInputs)
+    {
+        if (gc_input_active(state, input, triggerThreshold, cStickThreshold, leftTriggerAnalog, rightTriggerAnalog))
         {
             return input;
         }
@@ -662,17 +805,12 @@ void UnifiedInputDialog::setupUi(void)
         &UnifiedInputDialog::restoreCurrentPageDefaults);
 
     this->setStyleSheet(
-        "QLabel[recommendedBadge=\"true\"] {"
-        "  background: #e7f5eb;"
-        "  color: #1f6f3a;"
+        "QLabel[warningBox=\"true\"] {"
+        "  background: #fdeaea;"
+        "  color: #7a1f1f;"
+        "  border: 0;"
         "  border-radius: 4px;"
-        "  padding: 4px 8px;"
-        "}"
-        "QLabel[advisoryBadge=\"true\"] {"
-        "  background: #fff3cd;"
-        "  color: #7a4b00;"
-        "  border-radius: 4px;"
-        "  padding: 4px 8px;"
+        "  padding: 8px 10px;"
         "}"
         "QGroupBox[plainSurface=\"true\"] {"
         "  border: 0;"
@@ -700,27 +838,6 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     rootLayout->setContentsMargins(8, 8, 8, 8);
     rootLayout->setSpacing(8);
 
-    if (playerIndex == 0)
-    {
-        this->recommendationGroupBox = new QGroupBox(tr("Detected recommendations"), root);
-        this->recommendationGroupBox->setProperty("plainSurface", true);
-        auto* recommendationLayout = new QVBoxLayout(this->recommendationGroupBox);
-        recommendationLayout->setContentsMargins(10, 8, 10, 8);
-        recommendationLayout->setSpacing(6);
-        this->raphnetRecommendationLabel = new QLabel(this->recommendationGroupBox);
-        this->gamecubeRecommendationLabel = new QLabel(this->recommendationGroupBox);
-        this->usbRecommendationLabel = new QLabel(this->recommendationGroupBox);
-        for (QLabel* label : { this->raphnetRecommendationLabel, this->gamecubeRecommendationLabel, this->usbRecommendationLabel })
-        {
-            label->setWordWrap(true);
-            label->setMinimumHeight(24);
-            label->setProperty("recommendedBadge", false);
-            label->setProperty("advisoryBadge", false);
-            recommendationLayout->addWidget(label);
-        }
-        rootLayout->addWidget(this->recommendationGroupBox);
-    }
-
     auto* topLayout = new QHBoxLayout();
     page->portGroupBox = new QGroupBox(playerIndex == 0 ? tr("Controller") : tr("Player Port"), root);
     page->portGroupBox->setProperty("plainSurface", true);
@@ -730,14 +847,14 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     if (playerIndex == 0)
     {
         page->backendComboBox = new QComboBox(page->portGroupBox);
-        page->backendComboBox->addItem(tr("raphnet N64 adapter"), static_cast<int>(InputPluginType::Raphnet));
-        page->backendComboBox->addItem(tr("Native GameCube adapter"), static_cast<int>(InputPluginType::Gamecube));
-        page->backendComboBox->addItem(tr("Other USB controller"), static_cast<int>(InputPluginType::USB));
         page->backendComboBox->setMaximumWidth(420);
         portLayout->addRow(tr("Controller:"), page->backendComboBox);
         connect(page->backendComboBox, &QComboBox::currentIndexChanged, this, [this, page](int)
         {
-            this->setSelectedPlugin(static_cast<InputPluginType>(page->backendComboBox->currentData().toInt()));
+            if (page->backendComboBox->currentIndex() >= 0)
+            {
+                this->setSelectedPlugin(static_cast<InputPluginType>(page->backendComboBox->currentData().toInt()));
+            }
         });
     }
 
@@ -759,11 +876,37 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
         {
             this->openPreviewSource();
         }
+        if (playerIndex == 0)
+        {
+            this->updateWarningLabel();
+        }
     });
 
     page->portGroupBox->setMaximumWidth(560);
     topLayout->addWidget(page->portGroupBox, 0);
-    topLayout->addStretch(1);
+    if (playerIndex == 0)
+    {
+        this->warningLabel = new QLabel(root);
+        this->warningLabel->setWordWrap(true);
+        this->warningLabel->setProperty("warningBox", true);
+        this->warningLabel->setMinimumWidth(420);
+        this->warningLabel->setMaximumWidth(520);
+        this->warningLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        this->warningLabel->setVisible(false);
+        topLayout->addWidget(this->warningLabel, 0, Qt::AlignTop);
+        QTimer::singleShot(0, this, [this, page]()
+        {
+            if (this->warningLabel != nullptr && page->portGroupBox != nullptr)
+            {
+                this->warningLabel->setFixedHeight(page->portGroupBox->height());
+            }
+        });
+        topLayout->addStretch(1);
+    }
+    else
+    {
+        topLayout->addStretch(1);
+    }
     rootLayout->addLayout(topLayout);
 
     page->mappingsGroupBox = new QGroupBox(tr("Controller bindings"), root);
@@ -791,26 +934,10 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     leftColumn->addWidget(analogGroup);
     leftColumn->addStretch();
 
-    auto* controllerPanel = new QWidget(page->mappingsGroupBox);
-    auto* controllerStackLayout = new QStackedLayout(controllerPanel);
-    controllerStackLayout->setContentsMargins(0, 0, 0, 0);
-    controllerStackLayout->setStackingMode(QStackedLayout::StackAll);
+    auto* controllerPanel = new ControllerPreviewPanel(page->mappingsGroupBox);
+    page->controllerImageWidget = controllerPanel->ControllerImage();
 
-    page->controllerImageWidget = new Widget::ControllerImageWidget(controllerPanel);
-    page->controllerImageWidget->setMinimumSize(360, 220);
-    page->controllerImageWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    controllerStackLayout->addWidget(page->controllerImageWidget);
-
-    auto* controllerOverlay = new QWidget(controllerPanel);
-    controllerOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
-    auto* controllerOverlayLayout = new QGridLayout(controllerOverlay);
-    controllerOverlayLayout->setContentsMargins(0, 0, 0, 0);
-    controllerOverlayLayout->setRowStretch(0, 5);
-    controllerOverlayLayout->setRowStretch(2, 3);
-    controllerOverlayLayout->setColumnStretch(0, 5);
-    controllerOverlayLayout->setColumnStretch(2, 3);
-
-    auto* axisGroup = new QGroupBox(tr("Stick Output"), controllerOverlay);
+    auto* axisGroup = new QGroupBox(tr("Stick"), controllerPanel);
     axisGroup->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     axisGroup->setMaximumWidth(120);
     auto* axisLayout = new QGridLayout(axisGroup);
@@ -824,9 +951,7 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     axisLayout->addWidget(page->axisXLabel, 0, 1);
     axisLayout->addWidget(new QLabel(tr("Y:"), axisGroup), 1, 0);
     axisLayout->addWidget(page->axisYLabel, 1, 1);
-    controllerOverlayLayout->addWidget(axisGroup, 1, 1);
-    controllerStackLayout->addWidget(controllerOverlay);
-    controllerStackLayout->setCurrentWidget(controllerOverlay);
+    controllerPanel->SetOutputWidget(axisGroup);
     centerColumn->addWidget(controllerPanel, 1);
 
     auto* buttonGroup = new QGroupBox(tr("Buttons"), page->mappingsGroupBox);
@@ -879,18 +1004,45 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     page->gamecubeDeadzoneSlider->setRange(0, 100);
     page->gamecubeSensitivitySlider = new QSlider(Qt::Horizontal, page->gamecubeStickGroupBox);
     page->gamecubeSensitivitySlider->setRange(0, 200);
-    page->gamecubeTriggerThresholdSlider = new QSlider(Qt::Horizontal, page->gamecubeStickGroupBox);
-    page->gamecubeTriggerThresholdSlider->setRange(0, 100);
     page->gamecubeDeadzoneValueLabel = new QLabel(page->gamecubeStickGroupBox);
     page->gamecubeSensitivityValueLabel = new QLabel(page->gamecubeStickGroupBox);
-    page->gamecubeTriggerThresholdValueLabel = new QLabel(page->gamecubeStickGroupBox);
     gamecubeStickLayout->addRow(tr("Deadzone:"), create_slider_value_row(page->gamecubeStickGroupBox,
         page->gamecubeDeadzoneSlider, page->gamecubeDeadzoneValueLabel));
     gamecubeStickLayout->addRow(tr("Stick sensitivity:"), create_slider_value_row(page->gamecubeStickGroupBox,
         page->gamecubeSensitivitySlider, page->gamecubeSensitivityValueLabel));
-    gamecubeStickLayout->addRow(tr("Trigger threshold:"), create_slider_value_row(page->gamecubeStickGroupBox,
-        page->gamecubeTriggerThresholdSlider, page->gamecubeTriggerThresholdValueLabel));
     leftColumn->insertWidget(3, page->gamecubeStickGroupBox, 0, Qt::AlignLeft);
+
+    page->gamecubeTriggerGroupBox = new QGroupBox(tr("Trigger Settings"), page->mappingsGroupBox);
+    page->gamecubeTriggerGroupBox->setMaximumWidth(560);
+    auto* gamecubeTriggerLayout = new QFormLayout(page->gamecubeTriggerGroupBox);
+    auto* leftTriggerModeWidget = new QWidget(page->gamecubeTriggerGroupBox);
+    auto* leftTriggerModeLayout = new QHBoxLayout(leftTriggerModeWidget);
+    leftTriggerModeLayout->setContentsMargins(0, 0, 0, 0);
+    leftTriggerModeLayout->setSpacing(12);
+    page->gamecubeLeftTriggerDigitalRadioButton = new QRadioButton(tr("Digital"), leftTriggerModeWidget);
+    page->gamecubeLeftTriggerAnalogRadioButton = new QRadioButton(tr("Analog"), leftTriggerModeWidget);
+    leftTriggerModeLayout->addWidget(page->gamecubeLeftTriggerDigitalRadioButton);
+    leftTriggerModeLayout->addWidget(page->gamecubeLeftTriggerAnalogRadioButton);
+    leftTriggerModeLayout->addStretch(1);
+
+    auto* rightTriggerModeWidget = new QWidget(page->gamecubeTriggerGroupBox);
+    auto* rightTriggerModeLayout = new QHBoxLayout(rightTriggerModeWidget);
+    rightTriggerModeLayout->setContentsMargins(0, 0, 0, 0);
+    rightTriggerModeLayout->setSpacing(12);
+    page->gamecubeRightTriggerDigitalRadioButton = new QRadioButton(tr("Digital"), rightTriggerModeWidget);
+    page->gamecubeRightTriggerAnalogRadioButton = new QRadioButton(tr("Analog"), rightTriggerModeWidget);
+    rightTriggerModeLayout->addWidget(page->gamecubeRightTriggerDigitalRadioButton);
+    rightTriggerModeLayout->addWidget(page->gamecubeRightTriggerAnalogRadioButton);
+    rightTriggerModeLayout->addStretch(1);
+
+    page->gamecubeTriggerThresholdSlider = new QSlider(Qt::Horizontal, page->gamecubeTriggerGroupBox);
+    page->gamecubeTriggerThresholdSlider->setRange(0, 100);
+    page->gamecubeTriggerThresholdValueLabel = new QLabel(page->gamecubeTriggerGroupBox);
+    gamecubeTriggerLayout->addRow(tr("L trigger:"), leftTriggerModeWidget);
+    gamecubeTriggerLayout->addRow(tr("R trigger:"), rightTriggerModeWidget);
+    gamecubeTriggerLayout->addRow(tr("Trigger threshold:"), create_slider_value_row(page->gamecubeTriggerGroupBox,
+        page->gamecubeTriggerThresholdSlider, page->gamecubeTriggerThresholdValueLabel));
+    leftColumn->insertWidget(4, page->gamecubeTriggerGroupBox, 0, Qt::AlignLeft);
 
     page->statusLabel = new QLabel(root);
     page->statusLabel->setWordWrap(true);
@@ -924,6 +1076,20 @@ QWidget* UnifiedInputDialog::createControllerPage(int playerIndex)
     connect(page->gamecubeDeadzoneSlider, &QSlider::valueChanged, this, updateSliders);
     connect(page->gamecubeSensitivitySlider, &QSlider::valueChanged, this, updateSliders);
     connect(page->gamecubeTriggerThresholdSlider, &QSlider::valueChanged, this, updateSliders);
+    connect(page->gamecubeLeftTriggerAnalogRadioButton, &QRadioButton::toggled, this, [this, playerIndex](bool checked)
+    {
+        if (playerIndex == 0)
+        {
+            this->setGamecubeTriggerAnalog(true, checked);
+        }
+    });
+    connect(page->gamecubeRightTriggerAnalogRadioButton, &QRadioButton::toggled, this, [this, playerIndex](bool checked)
+    {
+        if (playerIndex == 0)
+        {
+            this->setGamecubeTriggerAnalog(false, checked);
+        }
+    });
 
     this->loadPageSettings(playerIndex);
     return root;
@@ -941,61 +1107,75 @@ void UnifiedInputDialog::refreshDetection(void)
         this->detectedDevicesPlainTextEdit->setPlainText(this->detectionReport.lines.join(QStringLiteral("\n")));
     }
 
-    this->updateRecommendationLabels();
     this->updateAllPages();
     this->openPreviewSource();
 }
 
-void UnifiedInputDialog::updateRecommendationLabels(void)
+void UnifiedInputDialog::updateWarningLabel(void)
 {
-    set_recommendation_badge(this->raphnetRecommendationLabel, QString(), RecommendationStyle::None);
-    set_recommendation_badge(this->gamecubeRecommendationLabel, QString(), RecommendationStyle::None);
-    set_recommendation_badge(this->usbRecommendationLabel, QString(), RecommendationStyle::None);
-
-    if (this->detectionReport.foundRaphnet)
+    if (this->warningLabel == nullptr)
     {
-        set_recommendation_badge(this->raphnetRecommendationLabel,
-            tr("Recommended: raphnet adapter detected"), RecommendationStyle::Recommended);
+        return;
     }
 
-    if (this->detectionReport.foundNativeGamecube)
+    QStringList warnings;
+    auto addWarning = [&warnings](const QString& warning)
     {
-        set_recommendation_badge(this->gamecubeRecommendationLabel,
-            tr("Recommended: GameCube adapter detected in Wii U/NS (native) mode"), RecommendationStyle::Recommended);
-    }
-    else if (this->detectionReport.foundBlockedNativeGamecube)
+        if (!warning.isEmpty() && !warnings.contains(warning))
+        {
+            warnings.append(warning);
+        }
+    };
+
+    if (this->detectionReport.foundBlockedNativeGamecube)
     {
-        set_recommendation_badge(this->gamecubeRecommendationLabel,
-            tr("Wii U/NS (native) adapter detected, but driver is missing"), RecommendationStyle::Advisory);
+        addWarning(tr("Native GameCube adapter detected, but driver is missing."));
     }
 
     if (this->detectionReport.foundUsbModeMayflash)
     {
-        set_recommendation_badge(this->usbRecommendationLabel,
-            tr("Mayflash USB mode detected; switch to Wii U/NS (native) mode for better support"),
-            RecommendationStyle::Advisory);
-    }
-    else if (this->detectionReport.foundOtherUsb)
-    {
-        set_recommendation_badge(this->usbRecommendationLabel,
-            tr("Recommended: USB controller detected"), RecommendationStyle::Recommended);
+        addWarning(tr("Mayflash GameCube adapter detected in USB mode. Switch it to Wii U/NS (native) mode for better support."));
     }
 
-    if (this->recommendationGroupBox != nullptr)
+    if (this->selectedPlugin == InputPluginType::Gamecube && this->gamecubeSelectedPortMissingController)
     {
-        const bool hasRecommendation =
-            (this->raphnetRecommendationLabel != nullptr && this->raphnetRecommendationLabel->isVisible()) ||
-            (this->gamecubeRecommendationLabel != nullptr && this->gamecubeRecommendationLabel->isVisible()) ||
-            (this->usbRecommendationLabel != nullptr && this->usbRecommendationLabel->isVisible());
-        this->recommendationGroupBox->setVisible(hasRecommendation);
+        addWarning(tr("GameCube controller selected, but no controller answered on the selected adapter port."));
     }
+
+    if (this->selectedPlugin == InputPluginType::USB &&
+        !this->controllerPages.isEmpty() &&
+        this->controllerPages[0]->deviceComboBox != nullptr)
+    {
+        const int deviceIndex = this->controllerPages[0]->deviceComboBox->currentData().toInt();
+        if (deviceIndex >= 0 && deviceIndex < static_cast<int>(this->usbDevices.size()))
+        {
+            const UsbDeviceChoice& device = this->usbDevices[deviceIndex];
+            if (device.type == InputDeviceType::Joystick && usb_device_is_raphnet(device))
+            {
+                addWarning(tr("Raphnet adapter is selected as Other USB. Use N64 Controller (Raphnet) for better support."));
+            }
+            else if (device.type == InputDeviceType::Joystick && usb_device_is_mayflash_gamecube(device))
+            {
+                addWarning(tr("Mayflash GameCube adapter detected in USB mode. Switch it to Wii U/NS (native) mode for better support."));
+            }
+            else if (device.type == InputDeviceType::Joystick &&
+                     this->detectionReport.foundNativeGamecube &&
+                     usb_device_is_gamecube_like(device))
+            {
+                addWarning(tr("GameCube adapter is selected as Other USB. Use Gamecube Controller (Native) for better support."));
+            }
+        }
+    }
+
+    this->warningLabel->setText(warnings.join(QStringLiteral("\n")));
+    this->warningLabel->setVisible(!warnings.isEmpty());
 }
 
 void UnifiedInputDialog::refreshUsbDevices(void)
 {
     this->usbDevices.clear();
-    this->usbDevices.append({ InputDeviceType::None, 0, false, QStringLiteral("None"), QString(), QString() });
-    this->usbDevices.append({ InputDeviceType::Keyboard, 0, false, QStringLiteral("Keyboard"), QString(), QString() });
+    this->usbDevices.append({ InputDeviceType::None, 0, false, QStringLiteral("None"), QString(), QString(), 0, 0 });
+    this->usbDevices.append({ InputDeviceType::Keyboard, 0, false, QStringLiteral("Keyboard"), QString(), QString(), 0, 0 });
 
     if (!SDL_WasInit(SDL_INIT_GAMEPAD) && !SDL_InitSubSystem(SDL_INIT_GAMEPAD))
     {
@@ -1012,6 +1192,8 @@ void UnifiedInputDialog::refreshUsbDevices(void)
         const bool isGamepad = SDL_IsGamepad(joystickId);
         const char* name = isGamepad ? SDL_GetGamepadNameForID(joystickId) : SDL_GetJoystickNameForID(joystickId);
         const char* path = isGamepad ? SDL_GetGamepadPathForID(joystickId) : SDL_GetJoystickPathForID(joystickId);
+        const uint16_t vendorId = isGamepad ? SDL_GetGamepadVendorForID(joystickId) : SDL_GetJoystickVendorForID(joystickId);
+        const uint16_t productId = isGamepad ? SDL_GetGamepadProductForID(joystickId) : SDL_GetJoystickProductForID(joystickId);
 
         this->usbDevices.append({
             InputDeviceType::Joystick,
@@ -1019,7 +1201,9 @@ void UnifiedInputDialog::refreshUsbDevices(void)
             isGamepad,
             string_from_const_char(name),
             string_from_const_char(path),
-            QString()
+            QString(),
+            vendorId,
+            productId
         });
     }
 
@@ -1035,6 +1219,72 @@ void UnifiedInputDialog::updateAllPages(void)
     {
         this->updatePageMode(i);
     }
+    this->updateWarningLabel();
+}
+
+bool UnifiedInputDialog::isPluginAvailable(InputPluginType plugin) const
+{
+    switch (plugin)
+    {
+    case InputPluginType::Raphnet:
+        return this->detectionReport.foundRaphnet;
+    case InputPluginType::Gamecube:
+        return this->detectionReport.foundNativeGamecube;
+    case InputPluginType::USB:
+    default:
+        return true;
+    }
+}
+
+UnifiedInputDialog::InputPluginType UnifiedInputDialog::availablePluginOrFallback(InputPluginType plugin) const
+{
+    if (this->isPluginAvailable(plugin))
+    {
+        return plugin;
+    }
+
+    const Recommendation recommendation = UnifiedInputDialog::DetectRecommendedPlugin(this->detectionReport);
+    if (recommendation.hasRecommendation && this->isPluginAvailable(recommendation.plugin))
+    {
+        return recommendation.plugin;
+    }
+
+    if (this->detectionReport.foundRaphnet)
+    {
+        return InputPluginType::Raphnet;
+    }
+    if (this->detectionReport.foundNativeGamecube)
+    {
+        return InputPluginType::Gamecube;
+    }
+
+    return InputPluginType::USB;
+}
+
+void UnifiedInputDialog::updateBackendChoices(void)
+{
+    if (this->controllerPages.isEmpty() || this->controllerPages[0]->backendComboBox == nullptr)
+    {
+        return;
+    }
+
+    QComboBox* comboBox = this->controllerPages[0]->backendComboBox;
+    QSignalBlocker blocker(comboBox);
+    comboBox->clear();
+
+    if (this->detectionReport.foundRaphnet)
+    {
+        comboBox->addItem(tr("N64 Controller (Raphnet)"), static_cast<int>(InputPluginType::Raphnet));
+    }
+    if (this->detectionReport.foundNativeGamecube)
+    {
+        comboBox->addItem(tr("Gamecube Controller (Native)"), static_cast<int>(InputPluginType::Gamecube));
+    }
+    comboBox->addItem(tr("Other USB controller"), static_cast<int>(InputPluginType::USB));
+
+    this->selectedPlugin = this->availablePluginOrFallback(this->selectedPlugin);
+    const int targetIndex = comboBox->findData(static_cast<int>(this->selectedPlugin));
+    comboBox->setCurrentIndex(targetIndex >= 0 ? targetIndex : 0);
 }
 
 void UnifiedInputDialog::updatePageMode(int pageIndex)
@@ -1043,12 +1293,7 @@ void UnifiedInputDialog::updatePageMode(int pageIndex)
 
     if (pageIndex == 0 && page->backendComboBox != nullptr)
     {
-        const int targetIndex = page->backendComboBox->findData(static_cast<int>(this->selectedPlugin));
-        if (targetIndex >= 0 && page->backendComboBox->currentIndex() != targetIndex)
-        {
-            QSignalBlocker blocker(page->backendComboBox);
-            page->backendComboBox->setCurrentIndex(targetIndex);
-        }
+        this->updateBackendChoices();
     }
 
     this->updatePageDeviceChoices(pageIndex);
@@ -1059,6 +1304,7 @@ void UnifiedInputDialog::updatePageMode(int pageIndex)
     page->mappingsGroupBox->setVisible(true);
     page->usbStickGroupBox->setVisible(usbMode);
     page->gamecubeStickGroupBox->setVisible(gamecubeMode && pageIndex == 0);
+    page->gamecubeTriggerGroupBox->setVisible(gamecubeMode && pageIndex == 0);
     page->pluggedInCheckBox->setVisible(pageIndex > 0 && (usbMode || gamecubeMode));
     if (pageIndex == 0)
     {
@@ -1239,7 +1485,7 @@ void UnifiedInputDialog::updateSliderLabels(int pageIndex)
 
 void UnifiedInputDialog::setSelectedPlugin(InputPluginType plugin)
 {
-    this->selectedPlugin = plugin;
+    this->selectedPlugin = this->availablePluginOrFallback(plugin);
     this->stopListeningForBinding(true);
     for (int i = 0; i < static_cast<int>(this->controllerPages.size()); i++)
     {
@@ -1305,6 +1551,20 @@ void UnifiedInputDialog::loadPageSettings(int pageIndex)
     page->gamecubeDeadzoneSlider->setValue(CoreSettingsGetIntValue(SettingsID::GCAInput_Deadzone));
     page->gamecubeSensitivitySlider->setValue(CoreSettingsGetIntValue(SettingsID::GCAInput_Sensitivity));
     page->gamecubeTriggerThresholdSlider->setValue(CoreSettingsGetIntValue(SettingsID::GCAInput_TriggerTreshold));
+    const bool leftTriggerAnalog = CoreSettingsGetBoolValue(SettingsID::GCAInput_LeftTriggerAnalog);
+    const bool rightTriggerAnalog = CoreSettingsGetBoolValue(SettingsID::GCAInput_RightTriggerAnalog);
+    {
+        QSignalBlocker leftDigitalBlocker(page->gamecubeLeftTriggerDigitalRadioButton);
+        QSignalBlocker leftAnalogBlocker(page->gamecubeLeftTriggerAnalogRadioButton);
+        QSignalBlocker rightDigitalBlocker(page->gamecubeRightTriggerDigitalRadioButton);
+        QSignalBlocker rightAnalogBlocker(page->gamecubeRightTriggerAnalogRadioButton);
+        page->gamecubeLeftTriggerDigitalRadioButton->setChecked(!leftTriggerAnalog);
+        page->gamecubeLeftTriggerAnalogRadioButton->setChecked(leftTriggerAnalog);
+        page->gamecubeRightTriggerDigitalRadioButton->setChecked(!rightTriggerAnalog);
+        page->gamecubeRightTriggerAnalogRadioButton->setChecked(rightTriggerAnalog);
+    }
+    apply_gamecube_trigger_mode(page->gamecubeBindings, true, leftTriggerAnalog);
+    apply_gamecube_trigger_mode(page->gamecubeBindings, false, rightTriggerAnalog);
 
     if (this->selectedPlugin == InputPluginType::Gamecube)
     {
@@ -1410,6 +1670,8 @@ void UnifiedInputDialog::saveGamecubeSettings(void)
     CoreSettingsSetValue(SettingsID::GCAInput_Deadzone, page->gamecubeDeadzoneSlider->value());
     CoreSettingsSetValue(SettingsID::GCAInput_Sensitivity, page->gamecubeSensitivitySlider->value());
     CoreSettingsSetValue(SettingsID::GCAInput_TriggerTreshold, page->gamecubeTriggerThresholdSlider->value());
+    CoreSettingsSetValue(SettingsID::GCAInput_LeftTriggerAnalog, page->gamecubeLeftTriggerAnalogRadioButton->isChecked());
+    CoreSettingsSetValue(SettingsID::GCAInput_RightTriggerAnalog, page->gamecubeRightTriggerAnalogRadioButton->isChecked());
 
     const std::array<SettingsID, 4> portSettings = {{
         SettingsID::GCAInput_Port1Enabled,
@@ -1481,6 +1743,18 @@ void UnifiedInputDialog::restoreCurrentPageDefaults(void)
         page->gamecubeDeadzoneSlider->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GCAInput_Deadzone));
         page->gamecubeSensitivitySlider->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GCAInput_Sensitivity));
         page->gamecubeTriggerThresholdSlider->setValue(CoreSettingsGetDefaultIntValue(SettingsID::GCAInput_TriggerTreshold));
+        const bool leftTriggerAnalog = CoreSettingsGetDefaultBoolValue(SettingsID::GCAInput_LeftTriggerAnalog);
+        const bool rightTriggerAnalog = CoreSettingsGetDefaultBoolValue(SettingsID::GCAInput_RightTriggerAnalog);
+        {
+            QSignalBlocker leftDigitalBlocker(page->gamecubeLeftTriggerDigitalRadioButton);
+            QSignalBlocker leftAnalogBlocker(page->gamecubeLeftTriggerAnalogRadioButton);
+            QSignalBlocker rightDigitalBlocker(page->gamecubeRightTriggerDigitalRadioButton);
+            QSignalBlocker rightAnalogBlocker(page->gamecubeRightTriggerAnalogRadioButton);
+            page->gamecubeLeftTriggerDigitalRadioButton->setChecked(!leftTriggerAnalog);
+            page->gamecubeLeftTriggerAnalogRadioButton->setChecked(leftTriggerAnalog);
+            page->gamecubeRightTriggerDigitalRadioButton->setChecked(!rightTriggerAnalog);
+            page->gamecubeRightTriggerAnalogRadioButton->setChecked(rightTriggerAnalog);
+        }
         for (int i = 0; i < static_cast<int>(kBindingTargets.size()); i++)
         {
             const BindingTarget& target = kBindingTargets[static_cast<size_t>(i)];
@@ -1488,6 +1762,8 @@ void UnifiedInputDialog::restoreCurrentPageDefaults(void)
                 CoreSettingsGetDefaultIntValue(target.gamecubeMapping) :
                 static_cast<int>(GCInput::None);
         }
+        apply_gamecube_trigger_mode(page->gamecubeBindings, true, leftTriggerAnalog);
+        apply_gamecube_trigger_mode(page->gamecubeBindings, false, rightTriggerAnalog);
     }
 
     this->updatePageBindingButtons(pageIndex);
@@ -1542,6 +1818,18 @@ void UnifiedInputDialog::clearBinding(int pageIndex, int bindingIndex)
     }
 
     this->updatePageBindingButtons(pageIndex);
+}
+
+void UnifiedInputDialog::setGamecubeTriggerAnalog(bool leftTrigger, bool analog)
+{
+    if (this->selectedPlugin != InputPluginType::Gamecube ||
+        this->controllerPages.isEmpty())
+    {
+        return;
+    }
+
+    apply_gamecube_trigger_mode(this->controllerPages[0]->gamecubeBindings, leftTrigger, analog);
+    this->updatePageBindingButtons(0);
 }
 
 void UnifiedInputDialog::keyPressEvent(QKeyEvent* event)
@@ -1609,6 +1897,8 @@ void UnifiedInputDialog::openPreviewSource(void)
 {
     this->closePreviewSource();
     this->clearPreview();
+    this->gamecubeSelectedPortMissingController = false;
+    this->updateWarningLabel();
 
     bool opened = false;
     switch (this->selectedPlugin)
@@ -1940,16 +2230,30 @@ bool UnifiedInputDialog::pollGamecubePreview(void)
 
     if (!state.status)
     {
-        show_status(page->statusLabel, tr("GameCube adapter connected, but no controller answered on the selected port."));
+        clear_status(page->statusLabel);
+        if (!this->gamecubeSelectedPortMissingController)
+        {
+            this->gamecubeSelectedPortMissingController = true;
+            this->updateWarningLabel();
+        }
         return false;
+    }
+
+    if (this->gamecubeSelectedPortMissingController)
+    {
+        this->gamecubeSelectedPortMissingController = false;
+        this->updateWarningLabel();
     }
 
     const double triggerThreshold = static_cast<double>(page->gamecubeTriggerThresholdSlider->value()) / 100.0;
     const double cStickThreshold = static_cast<double>(CoreSettingsGetIntValue(SettingsID::GCAInput_CButtonTreshold)) / 100.0;
+    const bool leftTriggerAnalog = page->gamecubeLeftTriggerAnalogRadioButton->isChecked();
+    const bool rightTriggerAnalog = page->gamecubeRightTriggerAnalogRadioButton->isChecked();
 
     if (this->listeningPageIndex == pageIndex && this->listeningBindingIndex >= 0)
     {
-        const GCInput detected = detect_gamecube_input(state, triggerThreshold, cStickThreshold);
+        const GCInput detected = detect_gamecube_input(state, triggerThreshold, cStickThreshold,
+            leftTriggerAnalog, rightTriggerAnalog);
         if (detected != GCInput::None)
         {
             page->gamecubeBindings[this->listeningBindingIndex] = static_cast<int>(detected);
@@ -1968,7 +2272,8 @@ bool UnifiedInputDialog::pollGamecubePreview(void)
         }
 
         set_button(page->controllerImageWidget, target.imageButton,
-            gc_input_active(state, static_cast<GCInput>(page->gamecubeBindings[i]), triggerThreshold, cStickThreshold));
+            gc_input_active(state, static_cast<GCInput>(page->gamecubeBindings[i]), triggerThreshold, cStickThreshold,
+                leftTriggerAnalog, rightTriggerAnalog));
     }
 
     const int8_t x = static_cast<int8_t>(state.leftStickX + 128);

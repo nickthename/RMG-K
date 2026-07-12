@@ -82,7 +82,7 @@
           <item>
            <widget class="QToolButton" name="gamecubeButton">
             <property name="text">
-             <string>GameCube native</string>
+             <string>Gamecube Controller (Native)</string>
             </property>
             <property name="toolButtonStyle">
              <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
@@ -112,7 +112,7 @@
           <item>
            <widget class="QToolButton" name="raphnetButton">
             <property name="text">
-             <string>N64 + raphnet</string>
+             <string>N64 Controller (Raphnet)</string>
             </property>
             <property name="toolButtonStyle">
              <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
@@ -285,12 +285,12 @@
        </item>
        <item>
         <property name="text">
-         <string>Raphnet</string>
+         <string>N64 Controller (Raphnet)</string>
         </property>
        </item>
        <item>
         <property name="text">
-         <string>GameCube native</string>
+         <string>Gamecube Controller (Native)</string>
         </property>
        </item>
        <item>

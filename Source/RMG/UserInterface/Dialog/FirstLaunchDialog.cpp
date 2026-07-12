@@ -151,6 +151,7 @@ FirstLaunchDialog::FirstLaunchDialog(QWidget* parent, InputPluginType currentPlu
     );
 
     this->detectionReport = this->scanInputDevices();
+    this->updateAvailableControllerOptions();
     this->updateDetectedDevices(this->detectionReport);
 
     this->recommendedPlugin = this->detectRecommendedPlugin(this->detectionReport, this->recommendedReason, this->hasRecommendation);
@@ -161,6 +162,7 @@ FirstLaunchDialog::FirstLaunchDialog(QWidget* parent, InputPluginType currentPlu
     {
         initialPlugin = this->recommendedPlugin;
     }
+    initialPlugin = this->availablePluginOrFallback(initialPlugin);
 
     this->setSelectedPluginInternal(initialPlugin, false);
 }
@@ -227,21 +229,25 @@ void FirstLaunchDialog::clearRecommendationLabels(void)
 
 void FirstLaunchDialog::setRecommendationLabel(InputPluginType plugin, const QString& reason, RecommendationStyle style)
 {
+    QToolButton* targetButton = nullptr;
     QLabel* targetLabel = nullptr;
     switch (plugin)
     {
     case InputPluginType::Gamecube:
+        targetButton = this->gamecubeButton;
         targetLabel = this->gamecubeRecommendedLabel;
         break;
     case InputPluginType::Raphnet:
+        targetButton = this->raphnetButton;
         targetLabel = this->raphnetRecommendedLabel;
         break;
     case InputPluginType::USB:
+        targetButton = this->usbButton;
         targetLabel = this->usbRecommendedLabel;
         break;
     }
 
-    if (targetLabel != nullptr)
+    if (targetLabel != nullptr && targetButton != nullptr && targetButton->isVisible())
     {
         targetLabel->setText(reason);
         targetLabel->setProperty("recommendedBadge", style == RecommendationStyle::Recommended);
@@ -250,6 +256,49 @@ void FirstLaunchDialog::setRecommendationLabel(InputPluginType plugin, const QSt
         targetLabel->style()->unpolish(targetLabel);
         targetLabel->style()->polish(targetLabel);
     }
+}
+
+bool FirstLaunchDialog::isPluginAvailable(InputPluginType plugin) const
+{
+    switch (plugin)
+    {
+    case InputPluginType::Raphnet:
+        return this->detectionReport.foundRaphnet;
+    case InputPluginType::Gamecube:
+        return this->detectionReport.foundNativeGamecube;
+    case InputPluginType::USB:
+    default:
+        return true;
+    }
+}
+
+FirstLaunchDialog::InputPluginType FirstLaunchDialog::availablePluginOrFallback(InputPluginType plugin) const
+{
+    if (this->isPluginAvailable(plugin))
+    {
+        return plugin;
+    }
+
+    if (this->detectionReport.foundRaphnet)
+    {
+        return InputPluginType::Raphnet;
+    }
+    if (this->detectionReport.foundNativeGamecube)
+    {
+        return InputPluginType::Gamecube;
+    }
+
+    return InputPluginType::USB;
+}
+
+void FirstLaunchDialog::updateAvailableControllerOptions(void)
+{
+    this->raphnetButton->setVisible(this->detectionReport.foundRaphnet);
+    this->raphnetRecommendedLabel->setVisible(this->detectionReport.foundRaphnet);
+    this->gamecubeButton->setVisible(this->detectionReport.foundNativeGamecube);
+    this->gamecubeRecommendedLabel->setVisible(this->detectionReport.foundNativeGamecube);
+    this->usbButton->setVisible(true);
+    this->usbRecommendedLabel->setVisible(true);
 }
 
 void FirstLaunchDialog::updateDetectedRecommendationLabels(const InputDetectionReport& report)
@@ -288,6 +337,8 @@ void FirstLaunchDialog::updateDetectedRecommendationLabels(const InputDetectionR
 
 void FirstLaunchDialog::setSelectedPluginInternal(InputPluginType plugin, bool emitSignal)
 {
+    plugin = this->availablePluginOrFallback(plugin);
+
     if (this->selectedPlugin != plugin)
     {
         this->selectedPlugin = plugin;
