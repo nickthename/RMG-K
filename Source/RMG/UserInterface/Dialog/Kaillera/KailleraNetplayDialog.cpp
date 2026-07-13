@@ -92,7 +92,7 @@ static constexpr int kConnectPollIntervalMs = 1;
 static constexpr int kP2PWaitingGamesRefreshMs = 8000;
 static constexpr int kP2PWaitingCodeRole = static_cast<int>(Qt::UserRole) + 1;
 static constexpr int kP2PWaitingHostRole = static_cast<int>(Qt::UserRole) + 2;
-static const char* kP2PWaitingGamesUrl = "http://kaillerareborn.2manygames.fr:27887/plist.txt";
+static const char* kP2PWaitingGamesUrl = "http://p2plist.smash64.net:27887/plist.txt";
 
 enum class P2PWaitingStatus {
     Favorite = 0,
@@ -4307,6 +4307,7 @@ void KailleraNetplayDialog::hostP2P(bool showOnPublicList)
     int port = CoreSettingsGetIntValue(SettingsID::Kaillera_Port);
     if (port <= 0 || port > 65535) port = 27886;
 
+    n02::resetStateMachine();
     if (p2p_core_initialize(true, port, APP, gameBytes.data(), usernameBytes.data()))
     {
         const bool stateTimerWasRunning =
@@ -4470,6 +4471,7 @@ void KailleraNetplayDialog::onP2PJoin()
     bool isCode = looksLikeTraversalCode(addrText);
     const QString normalizedCode = isCode ? normalizeTraversalCode(addrText) : QString();
 
+    n02::resetStateMachine();
     if (p2p_core_initialize(false, 0, APP, (char*)"", usernameBytes.data()))
     {
         const bool stateTimerWasRunning =
@@ -4514,62 +4516,36 @@ void KailleraNetplayDialog::onP2PJoin()
         }
         else
         {
-            // Join by direct IP:port
-            QByteArray ipBytes;
-            int port = 27886;
-            int colonIdx = addrText.lastIndexOf(':');
-            if (colonIdx >= 0)
+            // Join by direct IP:port — the dialog handles connecting and retries.
+            hide();
+
+            QString username = QString::fromUtf8(usernameBytes);
+            KailleraP2PDialog p2pDialog(false, QString(), username, addrText, nullptr);
+            connect(&p2pDialog, &KailleraP2PDialog::peerNicknameResolved, this,
+                    [this, addrText](const QString& nickname) {
+                        updateP2PStoredNickname(addrText, nickname);
+                    },
+                    Qt::QueuedConnection);
+            bool rollbackSessionActive = false;
+            connectRollbackSessionLaunch(p2pDialog, rollbackSessionActive);
+            p2pDialog.show();
+
+            QEventLoop loop;
+            connect(&p2pDialog, &QDialog::finished, &loop, &QEventLoop::quit);
+            loop.exec();
+
+            if (stateTimerWasRunning && m_stateMachineTimer != nullptr)
             {
-                ipBytes = addrText.left(colonIdx).toUtf8();
-                port = addrText.mid(colonIdx + 1).toInt();
-                if (port == 0) port = 27886;
+                m_stateMachineTimer->start(1);
             }
-            else
+
+            if (rollbackSessionActive)
             {
-                ipBytes = addrText.toUtf8();
+                accept();
+                return;
             }
 
-            if (p2p_core_connect(ipBytes.data(), port))
-            {
-                hide();
-
-                QString username = QString::fromUtf8(usernameBytes);
-                KailleraP2PDialog p2pDialog(false, QString(), username, QString(), nullptr);
-                connect(&p2pDialog, &KailleraP2PDialog::peerNicknameResolved, this,
-                        [this, addrText](const QString& nickname) {
-                            updateP2PStoredNickname(addrText, nickname);
-                        },
-                        Qt::QueuedConnection);
-                bool rollbackSessionActive = false;
-                connectRollbackSessionLaunch(p2pDialog, rollbackSessionActive);
-                p2pDialog.show();
-
-                QEventLoop loop;
-                connect(&p2pDialog, &QDialog::finished, &loop, &QEventLoop::quit);
-                loop.exec();
-
-                if (stateTimerWasRunning && m_stateMachineTimer != nullptr)
-                {
-                    m_stateMachineTimer->start(1);
-                }
-
-                if (rollbackSessionActive)
-                {
-                    accept();
-                    return;
-                }
-
-                show();
-            }
-            else
-            {
-                p2p_core_cleanup();
-                if (stateTimerWasRunning && m_stateMachineTimer != nullptr)
-                {
-                    m_stateMachineTimer->start(1);
-                }
-                QMessageBox::warning(this, "P2P Join", "Failed to connect to host: " + addrText);
-            }
+            show();
         }
     }
     else
