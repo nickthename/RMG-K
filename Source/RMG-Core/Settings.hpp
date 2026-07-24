@@ -108,6 +108,9 @@ enum class SettingsID
     Rollback_EnableLocalTesting,
     Rollback_VerbosePifInputLogging,
     Rollback_VerboseGlideInputLogging,
+    Rollback_StallDiagnostics,
+    Rollback_PacingTrace,
+    Rollback_PacingMode,
 
     // Core Plugin Settings
     Core_GFX_Plugin,
@@ -523,6 +526,9 @@ enum class SettingsID
     Input_Hotkey_Fullscreen_Name,
     Input_Hotkey_Fullscreen_Data,
     Input_Hotkey_Fullscreen_ExtraData,
+	
+    // Raphnet Input Plugin Settings
+    RaphnetInput_InputMode,
 
     // GCA Input Plugin Settings
     GCAInput_Deadzone,
