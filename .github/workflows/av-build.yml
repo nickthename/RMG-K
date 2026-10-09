@@ -11,6 +11,10 @@ permissions:
 env:
   SOURCE_COMMIT: 9fc7aa2cb9a06ab7ec47a1a6b217bb3b652cf52e
   APP_VERSION: v0.9.14
+  # Git for Windows and MSYS2 Git must agree about checkout line endings.
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: 'false'
 
 jobs:
   windows:

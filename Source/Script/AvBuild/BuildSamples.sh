@@ -11,8 +11,16 @@ results="$workspace/results"
 mkdir -p "$results/diagnostics" "$results/scan/stripped" "$results/scan/unstripped"
 
 actual_commit="$(git -C "$src" rev-parse HEAD)"
-[[ "$actual_commit" == "$SOURCE_COMMIT" ]]
-[[ -z "$(git -C "$src" status --porcelain)" ]]
+if [[ "$actual_commit" != "$SOURCE_COMMIT" ]]; then
+    echo "Expected source $SOURCE_COMMIT, found $actual_commit" >&2
+    exit 1
+fi
+git -C "$src" status --porcelain > "$results/diagnostics/source-before.txt"
+if [[ -s "$results/diagnostics/source-before.txt" ]]; then
+    echo "Release source checkout is not clean:" >&2
+    head -30 "$results/diagnostics/source-before.txt" >&2
+    exit 1
+fi
 pacman -Q > "$results/diagnostics/packages-before.txt"
 {
     printf 'Source commit: %s\nApp version: %s\nEnvironment: %s\n' \
