@@ -47,7 +47,7 @@ jobs:
           path-type: minimal
           update: true
           cache: false
-          install: make git curl
+          install: make git curl diffutils
 
       - name: Install current release dependencies
         if: matrix.environment == 'current-release-recipe'
