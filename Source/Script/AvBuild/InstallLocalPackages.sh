@@ -8,7 +8,10 @@ mkdir -p "$cache_dir"
 
 # Overlay only the named package group; keep every other baseline package pinned.
 variant="${AV_ENVIRONMENT:-local-ucrt64}"
-if [[ "$variant" != "local-ucrt64" ]]; then
+if [[ "$variant" == current-* ]]; then
+    lock_file="$script_dir/current-release.tsv"
+fi
+if [[ "$variant" != "local-ucrt64" && "$variant" != "current-control" ]]; then
     overlay="$script_dir/$variant.tsv"
     [[ -f "$overlay" ]] || { echo "Unknown package variant: $variant" >&2; exit 1; }
     awk -F '\t' '!/^#/ && NF == 4 { rows[$1] = $0 } END { for (name in rows) print rows[name] }' \

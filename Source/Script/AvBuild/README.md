@@ -55,7 +55,7 @@ job fails rather than substituting versions.
 ## Running and examining results
 
 Push the harness on `av-test` in nickthename/RMG-K. Its fork guard prevents use
-elsewhere. The push starts four Windows 2025 jobs. `workflow_dispatch` is also
+elsewhere. The push starts the two current inverse-comparison jobs. `workflow_dispatch` is also
 available once GitHub recognizes the workflow on the default branch. No changes
 to master are required for the push trigger.
 
@@ -78,3 +78,34 @@ It cannot isolate compiler code generation without a compatible dependency set.
 The current-recipe unstripped executable also scored 8/71 (Lazy variants, same
 eight vendors), so retaining its symbols did not resolve detection. SHA-256:
 `ca028b63ded98a6ee521e594eada6ba7e0d2f1f819020ecdc7654bc7e5a33a84`.
+
+## Runtime isolation results and inverse check
+
+Run: https://github.com/nickthename/RMG-K/actions/runs/37986661420
+
+All four builds succeeded from clean release source and the same runner image.
+Downloaded executable hashes and effective package inventories were verified.
+
+| Change from the GCC 15 / Qt 6.11.0 baseline | VirusTotal result |
+| --- | --- |
+| None (repeat control) | 0/70; Google failed |
+| Binutils 2.47-4 only | 0/71 |
+| Windows default manifest 20260815-1 only | 0/71 |
+| MinGW CRT, headers, and thread libraries r426 only | 8/71 |
+
+The runtime variant triggered the same eight vendors, with Lazy labels. Updating
+that group alone is sufficient to reproduce detection; GCC 16 is not required.
+Relinking the original local object files with only the r426 CRT archive also
+produced 8/71. This identifies the linked CRT package as a sufficient trigger in
+this build; it does not identify the proprietary AV rule or exact matching bytes.
+
+Current jobs use `current-release.tsv`, the exact 204-package inventory from the
+first current-recipe run, including GCC 16.2.0-4 and Qt 6.11.2. The control changes
+nothing. `current-old-crt` replaces only the CRT with r3. Package versions and
+hashes come from the saved official repository database, the earlier GCC lock,
+and verified archived packages for versions that advanced during investigation.
+
+The inverse check tests a narrower mitigation that preserves the newer compiler,
+Qt, and the release recipe's minizip 1.3.1. It must build successfully and scan
+cleanly before recommending it; a full portable runtime test is still required.
+The workflow never disables package dependency checks.

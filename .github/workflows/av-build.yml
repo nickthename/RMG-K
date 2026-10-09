@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [local-ucrt64, binutils247, mingw-runtime, manifest]
+        environment: [current-control, current-old-crt]
     steps:
       - name: Check out test harness
         uses: actions/checkout@v6
