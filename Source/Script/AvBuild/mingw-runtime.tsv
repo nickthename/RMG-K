@@ -1,0 +1,5 @@
+# name	version	archive	sha256
+mingw-w64-ucrt-x86_64-crt	14.0.0.r426.g4564ee4b5-1	mingw-w64-ucrt-x86_64-crt-14.0.0.r426.g4564ee4b5-1-any.pkg.tar.zst	5d1c1f2c3859e690181d9ebcada1640a6744ab8dd5643b4bdbc7fe258af95037
+mingw-w64-ucrt-x86_64-headers	14.0.0.r426.g4564ee4b5-1	mingw-w64-ucrt-x86_64-headers-14.0.0.r426.g4564ee4b5-1-any.pkg.tar.zst	b81c19e278ba0fc9f6ad0326d4aef64aea93053a6272916fb4c07069ac0215d0
+mingw-w64-ucrt-x86_64-libwinpthread	14.0.0.r426.g4564ee4b5-1	mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r426.g4564ee4b5-1-any.pkg.tar.zst	f8de8153bbc0e47ba244a423c12c426fa1d9f56395117ecaa34c6ad6ebed6ca3
+mingw-w64-ucrt-x86_64-winpthreads	14.0.0.r426.g4564ee4b5-1	mingw-w64-ucrt-x86_64-winpthreads-14.0.0.r426.g4564ee4b5-1-any.pkg.tar.zst	c24b627938c592666c7c2f73cc83be29c552f935f6c6cc25b86b20959629bfee

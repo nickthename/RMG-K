@@ -1,72 +1,71 @@
 # AV build comparison
 
-This fork-only workflow builds release v0.9.14 (commit
-`9fc7aa2cb9a06ab7ec47a1a6b217bb3b652cf52e`) twice without changing emulator source.
-The separate source checkout ensures the test harness commit does not change the
-application version or source under test. Both jobs enable netplay, the updater,
-angrylion, and cheats, use Release optimization, and strip installed executables.
-No compiler/build cache is restored. The workflow does not create releases, tags,
-commits, or VirusTotal submissions.
+Fork-only investigation of v0.9.14, source commit
+`9fc7aa2cb9a06ab7ec47a1a6b217bb3b652cf52e`. The harness and release source use
+separate checkouts. Emulator source, release version, optimization, netplay,
+updater, cheats, and stripping remain identical. No build cache is restored.
+The workflow publishes diagnostic artifacts, not releases.
 
-## Run on nickthename/RMG-K
+## Completed comparison
 
-1. Create a branch named `av-test` in this worktree.
-2. Commit only `.github/workflows/av-build.yml` and `Source/Script/AvBuild/`.
-3. Push `av-test` to `origin` (nickthename/RMG-K). The push starts the workflow.
-4. Open Actions -> AV build comparison on the fork. Download both `executables`
-   artifacts and scan `stripped/RMG-K.exe` from each first. Record the SHA-256,
-   detection count, detection names, and scan time.
-5. Keep the corresponding diagnostics artifacts. Repeat with "Re-run all jobs"
-   after the first comparison, without changing the source or harness.
+Run: https://github.com/nickthename/RMG-K/actions/runs/37978187008
 
-`workflow_dispatch` is also declared, but GitHub requires the workflow to exist on
-the default branch before manual dispatch is available. The `av-test` push trigger
-avoids needing to change master for this experiment. Pushes to this branch run two
-Windows jobs; the existing build workflow's push trigger only matches version tags.
-The job guard restricts this harness to nickthename/RMG-K.
+| Environment | GCC / Qt | SHA-256 | VirusTotal on October 9, 2026 |
+| --- | --- | --- | --- |
+| Current release recipe | 16.2.0-4 / 6.11.2 | `68bb318713a05c2f13b8ded1450c5aa3a9404fb0617da4f90d67e6e64be45cc1` | 8/71 |
+| Local UCRT64 package set on Actions | 15.2.0-13 / 6.11.0 | `9e02fcd389780928eb8f7a2375f9e04cc9822a33b838e712f742faa161f3aea2` | 0/69; Google and Zillya failed |
 
-## Environments
+All eight vendors flagging the current recipe returned Undetected for the pinned
+sample: ALYac, Arcabit, BitDefender, CTX, Emsisoft, eScan, GData, and VIPRE.
+The current detections were Yogi variants. This implicates an environment
+change but does not establish which package caused it or prove file safety.
 
-- **current-release-recipe** installs current MSYS2 packages using the Windows
-  release dependency list, including its minizip 1.3.1 exception. This is today's
-  recipe, not a reconstruction of the September release environment. Inspect the
-  recorded package versions; do not assume it still installs GCC 16.2.0.
-- **local-ucrt64** installs all 86 UCRT64 packages recorded from the local build
-  environment that produced the 0/71 sample on October 9, 2026. Versions and SHA-256
-  hashes come from installed package metadata and the local pacman archive cache.
-  Archives are fetched from the official MSYS2 server, verified against the lock
-  file, and installed in one transaction into a fresh UCRT64 environment. Exact
-  installed versions are checked afterward. GCC is 15.2.0-13 and Qt is 6.11.0.
+Other reference samples:
 
-The Windows runner and MSYS host tools are common to both jobs and are not pinned
-to the local Windows installation. This reproduces the UCRT64 compiler/dependency
-set, not the entire local machine. Old MSYS2 archive URLs can eventually expire;
-the job fails instead of silently substituting a package. No changes are made to
-the developer's local toolchain.
+- Official v0.9.14 (25/71): `bd2cc5876e81a35de0750d7c168f0a4b2f58d1aa0350491a41b113098a67bfda`
+- Local build of identical source (0/71): `019cb4f7789518f62c2d2ca59b8cb133e592ea16eca929d61c165a5d863f04be`
+- Release provenance: https://github.com/Jay-Day/RMG-K/actions/runs/33579212384
 
-## Artifacts and interpretation
+## Isolation matrix
 
-Each environment uploads a portable build, executables for scanning, and
-build/environment diagnostics. The executable artifact contains both the normal
-stripped executable and its unstripped counterpart from the same link step. Start
-with the stripped pair; use the unstripped files only as a secondary comparison.
-These are scan samples; use the portable artifact for runtime testing.
+Every job starts with the same 86-package baseline in `local-ucrt64.tsv`.
+A named overlay replaces only its matching package names and adds any required
+split packages. All archives use exact versions and SHA-256 checks. The actual
+installed UCRT64 inventory must equal the effective lock file.
 
-| Current recipe | Local package set on GitHub | Interpretation / next step |
-| --- | --- | --- |
-| Flagged | Clean | Environment difference reproduced on GitHub. Preserve this package set; isolate compatible toolchain/dependency changes next. |
-| Clean | Clean | Today's release recipe also produces a clean sample. Repeat, compare versions with the September build, and investigate the old environment/artifact specifically. |
-| Flagged | Flagged | Local UCRT64 versions alone do not reproduce the local result. Compare runner, host tools, flags, paths, and full detection reports. |
-| Clean | Flagged | The pinned package set does not help on this runner. Repeat and compare diagnostics before drawing a toolchain conclusion. |
+| Job | Only change from baseline |
+| --- | --- |
+| local-ucrt64 | None; repeated control |
+| gcc16 | GCC 16.2.0-4 and its matching split runtime packages |
+| binutils247 | Binutils 2.47-4 (linker, assembler, resource compiler, strip) |
+| mingw-runtime | MinGW headers, CRT, winpthreads, libwinpthread r426 |
+| manifest | Windows default manifest 20260815-1 |
 
-A single clean hash does not guarantee future builds will remain clean, and a
-change in detections does not identify GCC alone. Do not downgrade only GCC while
-leaving potentially incompatible newer runtime libraries in place. Preserve
-package inventories for repeats because the current recipe can change over time.
+Compiler runtimes stay together. Other libraries, including Qt, retain the
+baseline versions. These are diagnostic package combinations, not a release
+configuration until their runtime compatibility has been tested. Pacman resolves
+normal dependencies; the harness never disables dependency checks.
 
-Known reference hashes:
+Overlay versions match the first current-recipe run. GCC archives and hashes
+were fetched from the official MSYS2 repository; other overlay hashes came from
+its `ucrt64.db` on October 9. GCC subsequently advanced to 16.2.0-5, so the
+experiment explicitly retains 16.2.0-4. Archived package URLs may expire; the
+job fails rather than substituting versions.
 
-- Official v0.9.14 EXE (25/71): `bd2cc5876e81a35de0750d7c168f0a4b2f58d1aa0350491a41b113098a67bfda`
-- Same source built locally (0/71): `019cb4f7789518f62c2d2ca59b8cb133e592ea16eca929d61c165a5d863f04be`
+## Running and examining results
 
-Release provenance: https://github.com/Jay-Day/RMG-K/actions/runs/33579212384
+Push the harness on `av-test` in nickthename/RMG-K. Its fork guard prevents use
+elsewhere. The push starts five Windows 2025 jobs. `workflow_dispatch` is also
+available once GitHub recognizes the workflow on the default branch. No changes
+to master are required for the push trigger.
+
+Each job uploads normal stripped and unstripped EXEs, a portable folder, and
+build/environment diagnostics. Scan the normal stripped EXE first. Preserve its
+hash, scan time, vendor names, effective package lock, and runner image. Compare
+against the repeated baseline before attributing a change to an overlay.
+Diagnostics include the clean source status, package inventory, PE headers and
+sections, symbols, and link command. No local toolchain packages are changed.
+
+The workflow does not submit to VirusTotal automatically. A clean result for one
+hash cannot guarantee the next release will remain clean. If multiple individual
+overlays stay clean, test interactions or the remaining Qt/dependency changes.

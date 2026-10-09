@@ -6,6 +6,18 @@ lock_file="$script_dir/local-ucrt64.tsv"
 cache_dir="$(pwd)/av-packages"
 mkdir -p "$cache_dir"
 
+# Overlay only the named package group; keep every other baseline package pinned.
+variant="${AV_ENVIRONMENT:-local-ucrt64}"
+if [[ "$variant" != "local-ucrt64" ]]; then
+    overlay="$script_dir/$variant.tsv"
+    [[ -f "$overlay" ]] || { echo "Unknown package variant: $variant" >&2; exit 1; }
+    awk -F '\t' '!/^#/ && NF == 4 { rows[$1] = $0 } END { for (name in rows) print rows[name] }' \
+        "$lock_file" "$overlay" | LC_ALL=C sort > "$cache_dir/effective.tsv"
+    lock_file="$cache_dir/effective.tsv"
+fi
+mkdir -p results/diagnostics
+cp "$lock_file" results/diagnostics/effective-packages.tsv
+
 # Install the entire UCRT64 set together into a fresh environment. Never mix
 # older compiler runtimes with preinstalled, newer UCRT64 libraries.
 installed_ucrt="$(pacman -Qq | sed -n '/^mingw-w64-ucrt-x86_64-/p')"

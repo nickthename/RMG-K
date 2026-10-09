@@ -49,6 +49,9 @@ pacman -Q > "$results/diagnostics/packages-before.txt"
 
 (cd "$results/scan" && sha256sum stripped/RMG-K.exe unstripped/RMG-K.exe > SHA256SUMS.txt)
 objdump -p "$results/scan/stripped/RMG-K.exe" > "$results/diagnostics/pe-headers.txt"
+objdump -h "$results/scan/stripped/RMG-K.exe" > "$results/diagnostics/pe-sections.txt"
+nm -n -C "$results/scan/unstripped/RMG-K.exe" > "$results/diagnostics/symbols.txt"
+cp "$build/Source/RMG/CMakeFiles/RMG.dir/link.txt" "$results/diagnostics/link.txt"
 cp "$results/diagnostics/environment.txt" "$results/scan/"
 {
     printf '### %s\n\nSource: `%s` (%s)\n\n' "$AV_ENVIRONMENT" "$actual_commit" "$APP_VERSION"

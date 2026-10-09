@@ -1,0 +1,9 @@
+# name	version	archive	sha256
+mingw-w64-ucrt-x86_64-gcc	16.2.0-4	mingw-w64-ucrt-x86_64-gcc-16.2.0-4-any.pkg.tar.zst	dfde2ee85df123a4afc43ac7bf8d4c379ddb919010c4b79a17db0862e030b2d1
+mingw-w64-ucrt-x86_64-gcc-libs	16.2.0-4	mingw-w64-ucrt-x86_64-gcc-libs-16.2.0-4-any.pkg.tar.zst	e82d3a60a8d227632d1ddf713cb2c426cf2cb7f9ba19e6cc8f6ca99ede0547b6
+mingw-w64-ucrt-x86_64-cc-libs	16.2.0-4	mingw-w64-ucrt-x86_64-cc-libs-16.2.0-4-any.pkg.tar.zst	b05218ea8b8f2142d2042cd01843810f4cf9345af6e5e7fe39395590cd55b2dc
+mingw-w64-ucrt-x86_64-libgcc	16.2.0-4	mingw-w64-ucrt-x86_64-libgcc-16.2.0-4-any.pkg.tar.zst	de65b4adae899d9278427402e29d03860bacba481794460f3a1d078610cbb783
+mingw-w64-ucrt-x86_64-libstdc++	16.2.0-4	mingw-w64-ucrt-x86_64-libstdc++-16.2.0-4-any.pkg.tar.zst	2211dbbf1220287e49f5d66bb6cb09ee5a157901a485197553c9a940cc902d5b
+mingw-w64-ucrt-x86_64-libgomp	16.2.0-4	mingw-w64-ucrt-x86_64-libgomp-16.2.0-4-any.pkg.tar.zst	f34d39ab72a0a202dc18504db82aee4ab2a7cec9bc5c10daffdb9c22d87a1f90
+mingw-w64-ucrt-x86_64-libatomic	16.2.0-4	mingw-w64-ucrt-x86_64-libatomic-16.2.0-4-any.pkg.tar.zst	81d960422f47c9cff742aa5a6dd6c587ba39e5da64738d903730e79577479582
+mingw-w64-ucrt-x86_64-libquadmath	16.2.0-4	mingw-w64-ucrt-x86_64-libquadmath-16.2.0-4-any.pkg.tar.zst	75960aa837a7fc6dc8313afb11014bf7f42548ab6067498d0b561cc3c490b5b2
