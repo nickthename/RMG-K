@@ -36,7 +36,7 @@ installed UCRT64 inventory must equal the effective lock file.
 | Job | Only change from baseline |
 | --- | --- |
 | local-ucrt64 | None; repeated control |
-| gcc16 | GCC 16.2.0-4 and its matching split runtime packages |
+| gcc16 (disabled) | Incompatible with the old C++ dependencies; no valid AV result |
 | binutils247 | Binutils 2.47-4 (linker, assembler, resource compiler, strip) |
 | mingw-runtime | MinGW headers, CRT, winpthreads, libwinpthread r426 |
 | manifest | Windows default manifest 20260815-1 |
@@ -55,7 +55,7 @@ job fails rather than substituting versions.
 ## Running and examining results
 
 Push the harness on `av-test` in nickthename/RMG-K. Its fork guard prevents use
-elsewhere. The push starts five Windows 2025 jobs. `workflow_dispatch` is also
+elsewhere. The push starts four Windows 2025 jobs. `workflow_dispatch` is also
 available once GitHub recognizes the workflow on the default branch. No changes
 to master are required for the push trigger.
 
@@ -69,3 +69,12 @@ sections, symbols, and link command. No local toolchain packages are changed.
 The workflow does not submit to VirusTotal automatically. A clean result for one
 hash cannot guarantee the next release will remain clean. If multiple individual
 overlays stay clean, test interactions or the remaining Qt/dependency changes.
+
+The GCC-only test failed before configuration: GCC 16 removes emulated TLS
+exports required by the older CMake and other C++ dependencies. See
+https://www.msys2.org/news/#2026-05-11-native-thread-local-storage-tls-with-gcc-16.
+It cannot isolate compiler code generation without a compatible dependency set.
+
+The current-recipe unstripped executable also scored 8/71 (Lazy variants, same
+eight vendors), so retaining its symbols did not resolve detection. SHA-256:
+`ca028b63ded98a6ee521e594eada6ba7e0d2f1f819020ecdc7654bc7e5a33a84`.

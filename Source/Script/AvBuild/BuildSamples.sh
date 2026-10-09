@@ -51,7 +51,9 @@ pacman -Q > "$results/diagnostics/packages-before.txt"
 objdump -p "$results/scan/stripped/RMG-K.exe" > "$results/diagnostics/pe-headers.txt"
 objdump -h "$results/scan/stripped/RMG-K.exe" > "$results/diagnostics/pe-sections.txt"
 nm -n -C "$results/scan/unstripped/RMG-K.exe" > "$results/diagnostics/symbols.txt"
-cp "$build/Source/RMG/CMakeFiles/RMG.dir/link.txt" "$results/diagnostics/link.txt"
+for link_file in "$build/Source/RMG/CMakeFiles/RMG.dir/"{link.txt,build.make,linkLibs.rsp,objects1.rsp}; do
+    [[ ! -f "$link_file" ]] || cp "$link_file" "$results/diagnostics/"
+done
 cp "$results/diagnostics/environment.txt" "$results/scan/"
 {
     printf '### %s\n\nSource: `%s` (%s)\n\n' "$AV_ENVIRONMENT" "$actual_commit" "$APP_VERSION"
