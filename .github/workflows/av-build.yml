@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [current-control, current-old-crt]
+        environment: [current-control, current-tls]
     steps:
       - name: Check out test harness
         uses: actions/checkout@v6

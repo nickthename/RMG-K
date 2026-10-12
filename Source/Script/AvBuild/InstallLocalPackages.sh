@@ -11,7 +11,7 @@ variant="${AV_ENVIRONMENT:-local-ucrt64}"
 if [[ "$variant" == current-* ]]; then
     lock_file="$script_dir/current-release.tsv"
 fi
-if [[ "$variant" != "local-ucrt64" && "$variant" != "current-control" ]]; then
+if [[ "$variant" != "local-ucrt64" && "$variant" != "current-control" && "$variant" != "current-tls" ]]; then
     overlay="$script_dir/$variant.tsv"
     [[ -f "$overlay" ]] || { echo "Unknown package variant: $variant" >&2; exit 1; }
     awk -F '\t' '!/^#/ && NF == 4 { rows[$1] = $0 } END { for (name in rows) print rows[name] }' \

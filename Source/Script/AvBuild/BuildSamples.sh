@@ -34,11 +34,18 @@ pacman -Q > "$results/diagnostics/packages-before.txt"
     uname -a
 } > "$results/diagnostics/environment.txt"
 
+extra_cmake_args=()
+if [[ "$AV_ENVIRONMENT" == "current-tls" ]]; then
+    extra_cmake_args+=("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--undefined,_tls_used")
+fi
+printf '%s\n' "${extra_cmake_args[@]}" > "$results/diagnostics/extra-cmake-args.txt"
+
 {
     cmake -S "$src" -B "$build" -G 'MSYS Makefiles' \
         -DCMAKE_BUILD_TYPE=Release -DPORTABLE_INSTALL=ON \
         -DNETPLAY=ON -DUPDATER=ON -DUSE_ANGRYLION=ON -DINSTALL_CHEATS=ON \
-        -DUSE_CCACHE=OFF -DKAILLERA_APP_VERSION_OVERRIDE="$APP_VERSION"
+        -DUSE_CCACHE=OFF -DKAILLERA_APP_VERSION_OVERRIDE="$APP_VERSION" \
+        "${extra_cmake_args[@]}"
     cmake --build "$build" --parallel "$(nproc)"
     cp "$build/Source/RMG/RMG-K.exe" "$results/scan/unstripped/RMG-K.exe"
     cmake --install "$build" --strip --prefix="$src"
